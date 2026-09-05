@@ -1620,6 +1620,7 @@ function ChalklineApp() {
   const [commentsMap, setCommentsMap] = useState({});
   const [threads, setThreads] = useState([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -1672,6 +1673,7 @@ function ChalklineApp() {
     setLoadingFeed(true);
     await Promise.all([loadProfiles(), loadLogs(), loadSessions(), loadThreads(me)]);
     setLoadingFeed(false);
+    setHasLoadedOnce(true);
   }, [loadProfiles, loadLogs, loadSessions, loadThreads, me]);
   useEffect(() => {
     if (!bootstrapping) refreshAll();
@@ -2314,7 +2316,7 @@ function ChalklineApp() {
 
         .cl-spin { animation: cl-spin 0.8s linear infinite; }
         @keyframes cl-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
-      `), bootstrapping || me && loadingFeed && Object.keys(profiles).length === 0 ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me || !profiles[me] ? /* @__PURE__ */ React.createElement(Onboarding, { onCreate: createProfile, onResume: resumeProfile, checkingSlug: creating, authedUid: me && !profiles[me] ? me : null }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-header" }, /* @__PURE__ */ React.createElement("div", { className: "cl-wordmark" }, /* @__PURE__ */ React.createElement(Mountain, { size: 20, strokeWidth: 2.4 }), /* @__PURE__ */ React.createElement("h1", null, "Chalkline")), /* @__PURE__ */ React.createElement("div", { className: "cl-header-right" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setShowPeopleSearch(true), title: "Find people" }, /* @__PURE__ */ React.createElement(UserSearch, { size: 20 })), /* @__PURE__ */ React.createElement("div", { className: "cl-me-wrap" }, /* @__PURE__ */ React.createElement("button", { className: "cl-me", onClick: () => setMenuOpen((v) => !v) }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 30 })), menuOpen && /* @__PURE__ */ React.createElement("div", { className: "cl-me-menu" }, /* @__PURE__ */ React.createElement("button", { onClick: logOut }, /* @__PURE__ */ React.createElement(LogOut, { size: 14 }), " Log out"))))), /* @__PURE__ */ React.createElement("div", { className: "cl-main" }, tab === "home" && /* @__PURE__ */ React.createElement(
+      `), bootstrapping || me && !hasLoadedOnce ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me || !profiles[me] ? /* @__PURE__ */ React.createElement(Onboarding, { onCreate: createProfile, onResume: resumeProfile, checkingSlug: creating, authedUid: me && !profiles[me] ? me : null }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-header" }, /* @__PURE__ */ React.createElement("div", { className: "cl-wordmark" }, /* @__PURE__ */ React.createElement(Mountain, { size: 20, strokeWidth: 2.4 }), /* @__PURE__ */ React.createElement("h1", null, "Chalkline")), /* @__PURE__ */ React.createElement("div", { className: "cl-header-right" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setShowPeopleSearch(true), title: "Find people" }, /* @__PURE__ */ React.createElement(UserSearch, { size: 20 })), /* @__PURE__ */ React.createElement("div", { className: "cl-me-wrap" }, /* @__PURE__ */ React.createElement("button", { className: "cl-me", onClick: () => setMenuOpen((v) => !v) }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 30 })), menuOpen && /* @__PURE__ */ React.createElement("div", { className: "cl-me-menu" }, /* @__PURE__ */ React.createElement("button", { onClick: logOut }, /* @__PURE__ */ React.createElement(LogOut, { size: 14 }), " Log out"))))), /* @__PURE__ */ React.createElement("div", { className: "cl-main" }, tab === "home" && /* @__PURE__ */ React.createElement(
     HomeTab,
     {
       me,
