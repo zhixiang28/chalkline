@@ -960,15 +960,62 @@ function PeopleSearch({ me, profiles, onClose, onOpenProfile }) {
   const [query, setQuery] = useState("");
   const [manualCode, setManualCode] = useState("");
   const [scanState, setScanState] = useState("idle");
+  const [scanError, setScanError] = useState("");
   const videoRef = useRef();
+  const canvasRef = useRef();
   const streamRef = useRef();
+  const rafRef = useRef();
   const results = Object.values(profiles).filter((p) => p.slug !== me && (p.name.toLowerCase().includes(query.toLowerCase()) || p.slug.toLowerCase() === query.toLowerCase()));
+  const goToSlug = (slug) => {
+    const p = profiles[slug];
+    if (p) {
+      onOpenProfile(p.slug);
+      onClose();
+    }
+  };
   const stopScan = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
     if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setScanState("idle");
   };
+  const tick = (jsQR) => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState !== video.HAVE_ENOUGH_DATA) {
+      rafRef.current = requestAnimationFrame(() => tick(jsQR));
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    if (code && code.data) {
+      const raw = code.data.trim();
+      const slug = raw.startsWith("CHALKLINE:") ? raw.slice("CHALKLINE:".length) : raw;
+      if (profiles[slug]) {
+        stopScan();
+        goToSlug(slug);
+        return;
+      }
+    }
+    rafRef.current = requestAnimationFrame(() => tick(jsQR));
+  };
   const startScan = async () => {
+    setScanError("");
+    if (!window.isSecureContext) {
+      setScanState("failed");
+      setScanError("Camera access needs a secure (https) page \u2014 this should already be the case, but double-check your URL starts with https://.");
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setScanState("failed");
+      setScanError("This browser doesn't support camera access.");
+      return;
+    }
     setScanState("starting");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -978,18 +1025,21 @@ function PeopleSearch({ me, profiles, onClose, onOpenProfile }) {
         await videoRef.current.play();
       }
       setScanState("active");
-    } catch {
+      const jsQR = await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js", () => !!window.jsQR).then(() => window.jsQR);
+      rafRef.current = requestAnimationFrame(() => tick(jsQR));
+    } catch (err) {
       setScanState("failed");
+      if (err && err.name === "NotAllowedError") setScanError("Camera permission was denied. Check your browser's site settings (usually the padlock icon next to the address bar) and allow camera access for this site, then try again.");
+      else if (err && err.name === "NotFoundError") setScanError("No camera was found on this device.");
+      else if (err && err.name === "NotReadableError") setScanError("Your camera is already in use by another app.");
+      else setScanError("Couldn't load the QR scanner. You can still enter their code manually below.");
     }
   };
   useEffect(() => () => stopScan(), []);
   const goToCode = () => {
     const target = manualCode.trim();
-    const p = profiles[target] || Object.values(profiles).find((pp) => pp.slug === target.replace("CHALKLINE:", ""));
-    if (p) {
-      onOpenProfile(p.slug);
-      onClose();
-    }
+    const slug = target.startsWith("CHALKLINE:") ? target.slice("CHALKLINE:".length) : target;
+    goToSlug(slug);
   };
   return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => {
     stopScan();
@@ -997,7 +1047,7 @@ function PeopleSearch({ me, profiles, onClose, onOpenProfile }) {
   } }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Find people"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by name or ID\u2026", value: query, onChange: (e) => setQuery(e.target.value), autoFocus: true })), /* @__PURE__ */ React.createElement("div", { className: "cl-resume-list" }, results.map((p) => /* @__PURE__ */ React.createElement("button", { key: p.slug, className: "cl-resume-item", onClick: () => {
     onOpenProfile(p.slug);
     onClose();
-  } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 32 }), /* @__PURE__ */ React.createElement("span", null, p.name), /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))), query && results.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No match.")), /* @__PURE__ */ React.createElement("div", { className: "cl-qr-scan-section" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Scan a friend's QR code"), scanState !== "active" && /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", onClick: startScan }, /* @__PURE__ */ React.createElement(QrCode, { size: 14, style: { marginRight: 6 } }), " ", scanState === "starting" ? "Requesting camera\u2026" : "Scan QR code"), scanState === "active" && /* @__PURE__ */ React.createElement("video", { ref: videoRef, className: "cl-qr-video", muted: true, playsInline: true }), scanState === "failed" && /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Camera isn't available here \u2014 enter their code below instead."), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Or enter their ID"), /* @__PURE__ */ React.createElement("div", { className: "cl-inline-add" }, /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: manualCode, onChange: (e) => setManualCode(e.target.value), placeholder: "Their profile ID" }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: goToCode }, /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))))));
+  } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 32 }), /* @__PURE__ */ React.createElement("span", null, p.name), /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))), query && results.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No match.")), /* @__PURE__ */ React.createElement("div", { className: "cl-qr-scan-section" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Scan a friend's QR code"), scanState !== "active" && /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", onClick: startScan }, /* @__PURE__ */ React.createElement(QrCode, { size: 14, style: { marginRight: 6 } }), " ", scanState === "starting" ? "Requesting camera\u2026" : "Scan QR code"), scanState === "active" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("video", { ref: videoRef, className: "cl-qr-video", muted: true, playsInline: true }), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8 }, onClick: stopScan }, "Cancel scan"), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Point your camera at their QR code.")), scanState === "failed" && /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, scanError || "Camera isn't available here \u2014 enter their code below instead."), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Or enter their ID"), /* @__PURE__ */ React.createElement("div", { className: "cl-inline-add" }, /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: manualCode, onChange: (e) => setManualCode(e.target.value), placeholder: "Their profile ID" }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: goToCode }, /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))))));
 }
 var TECHNIQUE_PRESETS = ["Heel hook", "Toe hook", "Dyno", "Mantle", "Crimp", "Sloper", "Flag", "Drop knee", "Compression", "Smearing"];
 var FALL_POSITIONS = ["1/4", "1/2", "3/4"];
