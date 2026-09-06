@@ -388,6 +388,14 @@ function groupRecordsByDay(entries) {
   });
   return groups;
 }
+function resolveEntryTimestamp(entryDate) {
+  if (!entryDate) return Date.now();
+  const now = /* @__PURE__ */ new Date();
+  const [y, m, d] = entryDate.split("-").map(Number);
+  if (!y || !m || !d) return Date.now();
+  const dt = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+  return dt.getTime();
+}
 function formatDateBadge(dateStr) {
   if (!dateStr) return { day: "\u2013", mon: "" };
   const d = /* @__PURE__ */ new Date(dateStr + "T00:00:00");
@@ -730,6 +738,10 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const [satisfaction, setSatisfaction] = useState(0);
   const [hours, setHours] = useState("");
   const [minutes, setMinutes] = useState("");
+  const [entryDate, setEntryDate] = useState(() => {
+    const d = /* @__PURE__ */ new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
   const [privacy, setPrivacy] = useState(initial.privacy || "public");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -767,6 +779,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
       note: note.trim(),
       photo,
       minutes: totalMinutes,
+      entryDate,
       extra: Object.keys(extra).length > 0 ? extra : void 0
     });
     setSaving(false);
@@ -783,7 +796,10 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
       onRemove: postType === "day" && climbRows.length > 1 ? () => removeRow(i) : null,
       locked
     }
-  )), postType === "day" && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost cl-full", style: { marginTop: 6 }, onClick: addRow }, /* @__PURE__ */ React.createElement(Plus, { size: 14, style: { marginRight: 4 } }), " Add another climb")), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add another technique" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
+  )), postType === "day" && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost cl-full", style: { marginTop: 6 }, onClick: addRow }, /* @__PURE__ */ React.createElement(Plus, { size: 14, style: { marginRight: 4 } }), " Add another climb")), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Date"), /* @__PURE__ */ React.createElement("input", { type: "date", className: "cl-input", value: entryDate, max: (() => {
+    const d = /* @__PURE__ */ new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })(), onChange: (e) => setEntryDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add another technique" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
 }
 function DealForm({ onCancel, onSave }) {
   const [title, setTitle] = useState("");
@@ -2410,7 +2426,8 @@ function ChalklineApp() {
   const createClimbPost = async (data) => {
     const author = profiles[me];
     const finalTitle = data.title || (data.postType === "day" ? `Day at ${data.gym}` : "Untitled project");
-    const firstUpdate = { id: uid(), timestamp: Date.now(), note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs, ...data.extra || {} };
+    const ts = resolveEntryTimestamp(data.entryDate);
+    const firstUpdate = { id: uid(), timestamp: ts, note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs, ...data.extra || {} };
     await addLog({
       id: uid(),
       authorSlug: me,
@@ -2420,8 +2437,8 @@ function ChalklineApp() {
       title: finalTitle,
       gym: data.gym,
       privacy: data.privacy,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: ts,
+      updatedAt: ts,
       updates: [firstUpdate],
       kudos: [],
       savedBy: []
@@ -2561,8 +2578,9 @@ function ChalklineApp() {
   const addTry = async (logId, data) => {
     const entry = logs.find((l) => l.id === logId);
     if (!entry) return;
-    const update = { id: uid(), timestamp: Date.now(), note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs, ...data.extra || {} };
-    const next = { ...entry, updatedAt: Date.now(), updates: [...entry.updates || [], update] };
+    const ts = resolveEntryTimestamp(data.entryDate);
+    const update = { id: uid(), timestamp: ts, note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs, ...data.extra || {} };
+    const next = { ...entry, updatedAt: ts, updates: [...entry.updates || [], update] };
     await safeSet(`log:${logId}`, JSON.stringify(next), true);
     setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
   };
