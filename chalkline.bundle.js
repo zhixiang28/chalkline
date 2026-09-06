@@ -574,8 +574,35 @@ function StatusSelector({ value, onChange }) {
 function ClimbRow({ climb, onChange, onRemove, locked }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-climb-row" }, /* @__PURE__ */ React.createElement("div", { className: "cl-climb-row-top" }, /* @__PURE__ */ React.createElement(TypeSelector, { value: climb.type, onChange: (t) => onChange({ ...climb, type: t, grade: gradeOptionsFor(t) ? gradeOptionsFor(t)[0] : "" }), disabled: locked }), onRemove && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-icon-btn", onClick: onRemove }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 }))), /* @__PURE__ */ React.createElement(GradeSelector, { type: climb.type, grade: climb.grade, onChange: (g) => onChange({ ...climb, grade: g }), disabled: locked }), /* @__PURE__ */ React.createElement(StatusSelector, { value: climb.status, onChange: (s) => onChange({ ...climb, status: s }) }));
 }
+function ScrollPicker({ value, onChange, max, step = 1, label }) {
+  const ref = useRef();
+  const timeoutRef = useRef();
+  const itemHeight = 36;
+  const options = [];
+  for (let i = 0; i <= max; i += step) options.push(i);
+  useEffect(() => {
+    const idx = options.indexOf(Number(value) || 0);
+    if (ref.current && idx >= 0) ref.current.scrollTop = idx * itemHeight;
+  }, []);
+  const commitScroll = () => {
+    if (!ref.current) return;
+    const idx = Math.round(ref.current.scrollTop / itemHeight);
+    const val = options[Math.max(0, Math.min(options.length - 1, idx))];
+    if (val !== void 0) onChange(val);
+  };
+  const onScroll = () => {
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(commitScroll, 120);
+  };
+  const selectValue = (v) => {
+    onChange(v);
+    const idx = options.indexOf(v);
+    if (ref.current && idx >= 0) ref.current.scrollTo({ top: idx * itemHeight, behavior: "smooth" });
+  };
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-scroll-picker-wrap" }, /* @__PURE__ */ React.createElement("div", { className: "cl-scroll-picker-highlight" }), /* @__PURE__ */ React.createElement("div", { className: "cl-scroll-picker", ref, onScroll }, /* @__PURE__ */ React.createElement("div", { style: { height: itemHeight } }), options.map((o) => /* @__PURE__ */ React.createElement("div", { key: o, className: Number(value) === o ? "cl-scroll-picker-item active" : "cl-scroll-picker-item", onClick: () => selectValue(o) }, String(o).padStart(2, "0"))), /* @__PURE__ */ React.createElement("div", { style: { height: itemHeight } })), /* @__PURE__ */ React.createElement("span", { className: "cl-scroll-picker-label" }, label));
+}
 function DurationInput({ hours, minutes, setHours, setMinutes }) {
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-duration-row" }, /* @__PURE__ */ React.createElement("div", { className: "cl-duration-field" }, /* @__PURE__ */ React.createElement("input", { type: "number", min: "0", className: "cl-input", value: hours, onChange: (e) => setHours(e.target.value), placeholder: "0" }), /* @__PURE__ */ React.createElement("span", null, "hr")), /* @__PURE__ */ React.createElement("div", { className: "cl-duration-field" }, /* @__PURE__ */ React.createElement("input", { type: "number", min: "0", max: "59", className: "cl-input", value: minutes, onChange: (e) => setMinutes(e.target.value), placeholder: "0" }), /* @__PURE__ */ React.createElement("span", null, "min")));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-duration-row" }, /* @__PURE__ */ React.createElement(ScrollPicker, { value: Number(hours) || 0, onChange: (v) => setHours(String(v)), max: 12, step: 1, label: "hr" }), /* @__PURE__ */ React.createElement(ScrollPicker, { value: Number(minutes) || 0, onChange: (v) => setMinutes(String(v)), max: 55, step: 5, label: "min" }));
 }
 function Onboarding({ onCreate, onResume, checkingSlug, authedUid }) {
   const [mode, setMode] = useState(authedUid ? "finish-profile" : "choice");
@@ -756,7 +783,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
       onRemove: postType === "day" && climbRows.length > 1 ? () => removeRow(i) : null,
       locked
     }
-  )), postType === "day" && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost cl-full", style: { marginTop: 6 }, onClick: addRow }, /* @__PURE__ */ React.createElement(Plus, { size: 14, style: { marginRight: 4 } }), " Add another climb")), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time & photo"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes }), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add another technique" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
+  )), postType === "day" && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost cl-full", style: { marginTop: 6 }, onClick: addRow }, /* @__PURE__ */ React.createElement(Plus, { size: 14, style: { marginRight: 4 } }), " Add another climb")), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add another technique" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
 }
 function DealForm({ onCancel, onSave }) {
   const [title, setTitle] = useState("");
@@ -2906,8 +2933,17 @@ function ChalklineApp() {
         .cl-climb-row-top { display: flex; gap: 6px; align-items: center; }
         .cl-climb-row-top .cl-type-grid { flex: 1; }
 
-        .cl-duration-row { display: flex; gap: 10px; }
-        .cl-duration-field { flex: 1; display: flex; align-items: center; gap: 6px; }
+        .cl-duration-row { display: flex; gap: 20px; justify-content: center; padding: 6px 0 20px; }
+        .cl-scroll-picker-wrap { position: relative; width: 70px; }
+        .cl-scroll-picker { height: 108px; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        .cl-scroll-picker::-webkit-scrollbar { display: none; }
+        .cl-scroll-picker-item {
+          height: 36px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center;
+          font-size: 16px; color: var(--ink-soft); font-family: 'Big Shoulders Display', sans-serif; cursor: pointer;
+        }
+        .cl-scroll-picker-item.active { color: var(--ink); font-weight: 800; font-size: 22px; }
+        .cl-scroll-picker-highlight { position: absolute; top: 36px; left: 0; right: 0; height: 36px; border-top: 1.5px solid var(--accent2); border-bottom: 1.5px solid var(--accent2); pointer-events: none; }
+        .cl-scroll-picker-label { position: absolute; bottom: -20px; left: 0; right: 0; text-align: center; font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
         .cl-duration-field span { font-size: 12px; color: var(--ink-soft); }
 
         .cl-history-toggle { background: none; border: none; color: var(--ink-soft); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; padding: 8px 0 4px; }
