@@ -281,20 +281,21 @@ function computeDisplayBadges(stats) {
   const firstPost = all.find((b) => b.id === "first-post");
   return [firstPost, bestInCategory("boulder-", all), bestInCategory("route-", all), bestInCategory("hours-", all), bestInCategory("finish-", all)].filter(Boolean);
 }
-function gradeDistributionData(mine) {
+function gradeDistributionData(mine, type = "boulder") {
+  const gradeList = type === "boulder" ? BOULDER_GRADES : ROUTE_GRADES;
   const counts = {};
-  BOULDER_GRADES.forEach((g) => counts[g] = 0);
+  gradeList.forEach((g) => counts[g] = 0);
   mine.forEach((l) => {
     if (l.kind === "deal") return;
     (l.updates || []).forEach((u) => {
       (u.climbs || []).forEach((c) => {
-        if (c.type === "boulder" && counts[c.grade] !== void 0) counts[c.grade]++;
+        if (c.type === type && counts[c.grade] !== void 0) counts[c.grade]++;
       });
     });
   });
-  return BOULDER_GRADES.map((g) => ({ grade: g, count: counts[g] }));
+  return gradeList.map((g) => ({ grade: type === "boulder" ? g : usGrade(g), count: counts[g] }));
 }
-function monthlyProgressData(mine) {
+function monthlyProgressData(mine, type = null) {
   const now = /* @__PURE__ */ new Date();
   const buckets = [];
   for (let i = 5; i >= 0; i--) {
@@ -306,7 +307,9 @@ function monthlyProgressData(mine) {
     (l.updates || []).forEach((u) => {
       const d = new Date(u.timestamp);
       const b = buckets.find((b2) => b2.year === d.getFullYear() && b2.month === d.getMonth());
-      if (b) b.count += (u.climbs || []).length;
+      if (!b) return;
+      const climbs = type ? (u.climbs || []).filter((c) => c.type === type) : u.climbs || [];
+      b.count += climbs.length;
     });
   });
   return buckets.map((b) => ({ month: b.key, count: b.count }));
@@ -975,12 +978,14 @@ function BadgesGrid({ stats, onShareBadge }) {
   }));
 }
 function ProgressCharts({ mine }) {
-  const gradeData = gradeDistributionData(mine).filter((d, i) => i < 10 || d.count > 0);
-  const monthData = monthlyProgressData(mine);
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-charts" }, /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, "Boulder grades logged"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 140 }, /* @__PURE__ */ React.createElement(BarChart, { data: gradeData, margin: { top: 4, right: 4, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "grade", tick: { fontSize: 9 }, interval: 0 }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9 }, width: 24 }), /* @__PURE__ */ React.createElement(Tooltip, null), /* @__PURE__ */ React.createElement(Bar, { dataKey: "count", fill: "#6B8E4E", radius: [3, 3, 0, 0] }))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, "Last 6 months"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 120 }, /* @__PURE__ */ React.createElement(LineChart, { data: monthData, margin: { top: 4, right: 8, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", tick: { fontSize: 9 } }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9 }, width: 24 }), /* @__PURE__ */ React.createElement(Tooltip, null), /* @__PURE__ */ React.createElement(Line, { type: "monotone", dataKey: "count", stroke: "#C4501F", strokeWidth: 2, dot: { r: 3 } }))));
+  const [chartType, setChartType] = useState("boulder");
+  const gradeData = gradeDistributionData(mine, chartType).filter((d, i) => i < 10 || d.count > 0);
+  const monthData = monthlyProgressData(mine, chartType);
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-charts" }, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginBottom: 10 } }, [["boulder", "Boulder"], ["toprope", "Top rope"], ["lead", "Lead"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: chartType === val ? "cl-toggle active" : "cl-toggle", onClick: () => setChartType(val) }, lbl))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, TYPE_LABELS[chartType], " grades logged"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 140 }, /* @__PURE__ */ React.createElement(BarChart, { data: gradeData, margin: { top: 4, right: 4, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "grade", tick: { fontSize: 9 }, interval: 0 }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9 }, width: 24 }), /* @__PURE__ */ React.createElement(Tooltip, null), /* @__PURE__ */ React.createElement(Bar, { dataKey: "count", fill: "#6B8E4E", radius: [3, 3, 0, 0] }))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, "Last 6 months"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 120 }, /* @__PURE__ */ React.createElement(LineChart, { data: monthData, margin: { top: 4, right: 8, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", tick: { fontSize: 9 } }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9 }, width: 24 }), /* @__PURE__ */ React.createElement(Tooltip, null), /* @__PURE__ */ React.createElement(Line, { type: "monotone", dataKey: "count", stroke: "#C4501F", strokeWidth: 2, dot: { r: 3 } }))));
 }
-function ProfileView({ slug, me, profiles, logs, onClose, onToggleFollow, onToggleBlock, onMessage }) {
+function ProfileView({ slug, me, profiles, logs, commentsMap, onClose, onToggleFollow, onToggleBlock, onMessage, addComment, toggleKudo, toggleSave, onShare, onShareToPost, onOpenLogDetail, onEnlarge }) {
   const [showFollowers, setShowFollowers] = useState(false);
+  const [expandedRecord, setExpandedRecord] = useState(null);
   const target = profiles[slug];
   const myProfile = profiles[me];
   if (!target) return null;
@@ -998,10 +1003,31 @@ function ProfileView({ slug, me, profiles, logs, onClose, onToggleFollow, onTogg
   })), target.gear && target.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, target.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-stats-row" }, /* @__PURE__ */ React.createElement("div", { className: "cl-stat" }, /* @__PURE__ */ React.createElement("b", null, publicLogs.length), /* @__PURE__ */ React.createElement("span", null, "posts")), /* @__PURE__ */ React.createElement("button", { className: "cl-stat cl-stat-btn", onClick: () => setShowFollowers((v) => !v) }, /* @__PURE__ */ React.createElement("b", null, followerSlugs.length), /* @__PURE__ */ React.createElement("span", null, "followers")), /* @__PURE__ */ React.createElement("div", { className: "cl-stat" }, /* @__PURE__ */ React.createElement("b", null, (target.following || []).length), /* @__PURE__ */ React.createElement("span", null, "following"))), showFollowers && (friend ? /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, followerSlugs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No followers yet."), followerSlugs.map((s) => {
     const p = profiles[s];
     return p ? /* @__PURE__ */ React.createElement("div", { className: "cl-crew-card", key: s }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 30 }), /* @__PURE__ */ React.createElement("div", { className: "cl-crew-name" }, p.name)) : null;
-  })) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 8 } }, "Follow each other to see ", target.name, "'s followers.")), !blocked ? /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onToggleFollow(slug) }, following ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserMinus, { size: 14, style: { marginRight: 4 } }), " Unfollow") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserPlus, { size: 14, style: { marginRight: 4 } }), " Follow")), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: () => onMessage(slug) }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 14, style: { marginRight: 4 } }), " Message")) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 10 } }, "You or ", target.name, " have blocked each other."), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8, color: "var(--accent2)" }, onClick: () => onToggleBlock(slug) }, /* @__PURE__ */ React.createElement(Ban, { size: 14, style: { marginRight: 4 } }), " ", blocked ? "Unblock" : "Block")), !blocked && publicLogs.filter((l) => l.kind === "post").length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-guest-posts", style: { marginTop: 16, cursor: "default" } }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Posts"), publicLogs.filter((l) => l.kind === "post").slice(0, 10).map((entry) => /* @__PURE__ */ React.createElement("div", { className: "cl-guest-post", key: entry.id }, entry.photos && entry.photos[0] && /* @__PURE__ */ React.createElement("img", { src: entry.photos[0], alt: "", className: "cl-guest-post-photo" }), entry.caption && /* @__PURE__ */ React.createElement("div", { className: "cl-guest-post-title" }, entry.caption)))), !blocked && publicLogs.filter((l) => l.kind === "climb").length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-guest-posts", style: { marginTop: 16, cursor: "default" } }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Log"), publicLogs.filter((l) => l.kind === "climb").slice(0, 10).map((entry) => {
-    const best = bestUpdate(entry.updates);
-    return /* @__PURE__ */ React.createElement("div", { className: "cl-guest-post", key: entry.id, style: { padding: "8px 10px" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-guest-post-title", style: { padding: 0 } }, entry.title), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row", style: { marginTop: 4 } }, (best.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade, status: c.status }))));
-  }))));
+  })) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 8 } }, "Follow each other to see ", target.name, "'s followers.")), !blocked ? /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onToggleFollow(slug) }, following ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserMinus, { size: 14, style: { marginRight: 4 } }), " Unfollow") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserPlus, { size: 14, style: { marginRight: 4 } }), " Follow")), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: () => onMessage(slug) }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 14, style: { marginRight: 4 } }), " Message")) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 10 } }, "You or ", target.name, " have blocked each other."), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8, color: "var(--accent2)" }, onClick: () => onToggleBlock(slug) }, /* @__PURE__ */ React.createElement(Ban, { size: 14, style: { marginRight: 4 } }), " ", blocked ? "Unblock" : "Block")), !blocked && publicLogs.filter((l) => l.kind === "post").length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 16, display: "flex", flexDirection: "column", gap: 12 } }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Posts"), publicLogs.filter((l) => l.kind === "post").map((entry) => /* @__PURE__ */ React.createElement(
+    SocialPostCard,
+    {
+      key: entry.id,
+      entry,
+      profile: target,
+      comments: commentsMap[entry.id] || [],
+      me,
+      allLogs: logs,
+      onComment: addComment,
+      onKudo: toggleKudo,
+      onDelete: () => {
+      },
+      onToggleSave: toggleSave,
+      onOpenProfile: () => {
+      },
+      onEnlarge,
+      onShare,
+      onOpenLogDetail
+    }
+  ))), !blocked && publicLogs.filter((l) => l.kind === "climb").length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 16, display: "flex", flexDirection: "column", gap: 8 } }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Log"), groupRecordsByDay(publicLogs.filter((l) => l.kind === "climb")).map((group) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("p", { className: "cl-day-header" }, group.label), group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, expanded: expandedRecord === entry.id, onToggle: () => setExpandedRecord(expandedRecord === entry.id ? null : entry.id) }, /* @__PURE__ */ React.createElement(RecordDetail, { entry, me, onDelete: () => {
+  }, onTogglePrivacy: () => {
+  }, onAddTry: () => {
+  }, onLiveLog: () => {
+  }, onEnlarge, onShare, onShareToPost, onOpenLogDetail }))))))));
 }
 function normalizePoints(points) {
   if (!points) return { start: [], end: [] };
@@ -1920,7 +1946,7 @@ function SessionCard({ session, profiles, me, onJoin, onLeave, onDelete, onOpenP
   };
   return /* @__PURE__ */ React.createElement("div", { className: iAmInvited ? "cl-card cl-invited" : "cl-card" }, /* @__PURE__ */ React.createElement("div", { className: "cl-session-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-date-badge" }, /* @__PURE__ */ React.createElement("span", { className: "cl-date-day" }, badge.day), /* @__PURE__ */ React.createElement("span", { className: "cl-date-mon" }, badge.mon)), /* @__PURE__ */ React.createElement("button", { className: "cl-session-avatar-btn", onClick: () => onOpenProfile(session.creatorSlug) }, /* @__PURE__ */ React.createElement(Avatar, { name: creator?.name || session.creatorName, photo: creator?.photo, size: 30 })), /* @__PURE__ */ React.createElement("div", { className: "cl-session-main" }, /* @__PURE__ */ React.createElement("button", { className: "cl-session-title-btn", onClick: () => onOpenProfile(session.creatorSlug) }, session.kind === "course" ? `${creator?.name || session.creatorName}'s course` : `Climb with ${creator?.name || session.creatorName}`), /* @__PURE__ */ React.createElement("div", { className: "cl-session-meta-line" }, /* @__PURE__ */ React.createElement(MapPin, { size: 11 }), " ", session.gym, " \xB7 ", formatDateLong(session.date), session.time ? ` \xB7 ${session.time}` : "")), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${session.kind === "course" ? "trying" : "sent"}` }, session.kind === "course" ? "Course" : "Climb"), isMine && /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(session.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" })), (iAmInvited || session.kind === "course" && session.level || session.note) && /* @__PURE__ */ React.createElement("div", { className: "cl-card-body", style: { paddingTop: 0, paddingBottom: 4 } }, iAmInvited && /* @__PURE__ */ React.createElement("p", { className: "cl-invite-note" }, "You're invited \u2014 join below"), session.kind === "course" && session.level && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, /* @__PURE__ */ React.createElement("b", null, "Level:"), " ", session.level), session.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, session.note)), /* @__PURE__ */ React.createElement("div", { className: "cl-session-footer-row" }, /* @__PURE__ */ React.createElement("div", { className: "cl-participants" }, session.participants.map((slug) => {
     const p = profiles[slug];
-    return /* @__PURE__ */ React.createElement(Avatar, { key: slug, name: p?.name || "?", photo: p?.photo, size: 24 });
+    return /* @__PURE__ */ React.createElement("button", { key: slug, className: "cl-participant-btn", onClick: () => onOpenProfile(slug), title: p?.name || "?" }, /* @__PURE__ */ React.createElement(Avatar, { name: p?.name || "?", photo: p?.photo, size: 24 }));
   })), /* @__PURE__ */ React.createElement("span", { className: "cl-session-spots" }, spotsLeft > 0 ? `${spotsLeft}/${session.capacity} left` : "Full"), !isMine && (joined ? /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-session-btn", onClick: () => onLeave(session.id) }, "Leave") : /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary cl-session-btn", style: { marginTop: 0 }, onClick: () => onJoin(session.id), disabled: spotsLeft <= 0 }, spotsLeft <= 0 ? "Full" : "Join"))), invitedNotJoined.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { padding: "0 12px 10px" } }, "Invited: ", invitedNotJoined.map((s) => profiles[s]?.name || s).join(", ")), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-viewcomments", style: { padding: "0 14px 8px" }, onClick: () => setShowComments((v) => !v) }, commentList.length > 0 ? `View all ${commentList.length} comment${commentList.length === 1 ? "" : "s"}` : "Add a comment\u2026"), showComments && /* @__PURE__ */ React.createElement("div", { className: "cl-comments", style: { paddingBottom: 12 } }, commentList.map((c, i) => /* @__PURE__ */ React.createElement("div", { className: "cl-comment", key: i }, /* @__PURE__ */ React.createElement("b", null, c.authorName), " ", c.text)), /* @__PURE__ */ React.createElement("div", { className: "cl-comment-input" }, /* @__PURE__ */ React.createElement(
     "input",
     {
@@ -2737,6 +2763,7 @@ function ChalklineApp() {
         .cl-comment-input .cl-input { flex: 1; }
 
         .cl-participants { display: flex; }
+        .cl-participant-btn { background: none; border: none; padding: 0; cursor: pointer; }
         .cl-participants .cl-avatar, .cl-participants .cl-avatar-img { margin-right: -8px; border: 2px solid var(--surface); }
         .cl-session-footer-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px 12px; }
         .cl-session-spots { flex: 1; font-size: 11px; color: var(--ink-soft); font-weight: 600; }
@@ -2990,10 +3017,18 @@ function ChalklineApp() {
       me,
       profiles,
       logs,
+      commentsMap,
       onClose: () => setViewingProfile(null),
       onToggleFollow: toggleFollow,
       onToggleBlock: toggleBlock,
-      onMessage: goToChat
+      onMessage: goToChat,
+      addComment,
+      toggleKudo,
+      toggleSave,
+      onShare,
+      onShareToPost: (entry) => setShowSocialPost({ attachLogId: entry.id }),
+      onOpenLogDetail: setViewingLogDetail,
+      onEnlarge: (photo, points) => setLightbox({ photo, points })
     }
   ), showPeopleSearch && /* @__PURE__ */ React.createElement(PeopleSearch, { me, profiles, onClose: () => setShowPeopleSearch(false), onOpenProfile: openProfile }), showMyQR && /* @__PURE__ */ React.createElement(MyQRModal, { me, username: profiles[me] && profiles[me].username, onClose: () => setShowMyQR(false) }), showSettings && /* @__PURE__ */ React.createElement(SettingsOverlay, { profile: profiles[me], onSave: saveProfile, onClose: () => setShowSettings(false) }), showNewPost && /* @__PURE__ */ React.createElement(
     NewPostOverlay,
