@@ -48,7 +48,8 @@ import {
   Zap,
   Star,
   Share2,
-  Coffee
+  Coffee,
+  Download
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 var BOULDER_GRADES = ["VB", ...Array.from({ length: 13 }, (_, i) => `V${i}`)];
@@ -750,15 +751,18 @@ function DealForm({ onCancel, onSave }) {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [link, setLink] = useState("");
-  const [photo, setPhoto] = useState(null);
+  const [photos, setPhotos] = useState([]);
   const [privacy, setPrivacy] = useState("public");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const onFile = async (e) => {
+  const addPhoto = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setPhoto(await resizeImage(f));
+    const dataUrl = await resizeImage(f);
+    setPhotos((prev) => [...prev, dataUrl]);
+    e.target.value = "";
   };
+  const removePhoto = (i) => setPhotos((prev) => prev.filter((_, idx) => idx !== i));
   const submit = async () => {
     if (!title.trim()) {
       setError("Give your item a title.");
@@ -766,10 +770,10 @@ function DealForm({ onCancel, onSave }) {
     }
     setError("");
     setSaving(true);
-    await onSave({ title: title.trim(), description: description.trim(), price: price.trim(), link: link.trim(), photo, privacy });
+    await onSave({ title: title.trim(), description: description.trim(), price: price.trim(), link: link.trim(), photos, privacy });
     setSaving(false);
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-card cl-form-card" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "What are you selling? *"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: title, onChange: (e) => setTitle(e.target.value), placeholder: "e.g. Climbing shoes, size 42" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Photo"), /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", onChange: onFile, className: "cl-file-hidden", id: "deal-photo" }), /* @__PURE__ */ React.createElement("label", { htmlFor: "deal-photo", className: "cl-photo-btn" }, /* @__PURE__ */ React.createElement(Camera, { size: 16 }), " ", photo ? "Change photo" : "Add a photo"), photo && /* @__PURE__ */ React.createElement("img", { src: photo, alt: "preview", className: "cl-photo-preview" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Price"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: price, onChange: (e) => setPrice(e.target.value), placeholder: "e.g. RM80 or Negotiable" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Link (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: link, onChange: (e) => setLink(e.target.value), placeholder: "https://\u2026" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Description"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Condition, size, why you're selling\u2026", value: description, onChange: (e) => setDescription(e.target.value) }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private")), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Posting\u2026" : "Post deal")));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-card cl-form-card" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "What are you selling? *"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: title, onChange: (e) => setTitle(e.target.value), placeholder: "e.g. Climbing shoes, size 42" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Photos"), /* @__PURE__ */ React.createElement("div", { className: "cl-multi-photo-row" }, photos.map((p, i) => /* @__PURE__ */ React.createElement("div", { className: "cl-multi-photo-thumb", key: i }, /* @__PURE__ */ React.createElement("img", { src: p, alt: "" }), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => removePhoto(i) }, /* @__PURE__ */ React.createElement(X, { size: 12 })))), /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", onChange: addPhoto, className: "cl-file-hidden", id: "deal-photo-add" }), /* @__PURE__ */ React.createElement("label", { htmlFor: "deal-photo-add", className: "cl-multi-photo-add" }, /* @__PURE__ */ React.createElement(Plus, { size: 18 }))), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Add as many as you like \u2014 each is resized automatically, up to ~900px wide."), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Price"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: price, onChange: (e) => setPrice(e.target.value), placeholder: "e.g. RM80 or Negotiable" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Link (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: link, onChange: (e) => setLink(e.target.value), placeholder: "https://\u2026" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Description"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Condition, size, why you're selling\u2026", value: description, onChange: (e) => setDescription(e.target.value) }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private")), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Posting\u2026" : "Post deal")));
 }
 function NewPostForm({ defaultGym, onCancel, onSaveLog }) {
   return /* @__PURE__ */ React.createElement(LogForm, { initial: { gym: defaultGym }, onCancel, onSave: onSaveLog });
@@ -843,13 +847,30 @@ function WallLogCard({ entry, profile, comments, me, defaultGym, onComment, onKu
     }
   ));
 }
-function DealCard({ entry, profile, comments, me, onComment, onKudo, onDelete, onToggleSave, onOpenProfile, onEnlarge, onShare }) {
+function DealCard({ entry, profile, comments, me, onComment, onKudo, onDelete, onToggleSave, onOpenProfile, onShare }) {
   const [text, setText] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [photoIdx, setPhotoIdx] = useState(0);
+  const [aspectRatio, setAspectRatio] = useState(1.25);
+  const scrollRef = useRef();
   const kudos = entry.kudos || [];
   const kudoed = kudos.includes(me);
   const saved = (entry.savedBy || []).includes(me);
   const isMine = entry.authorSlug === me;
+  const photos = entry.photos && entry.photos.length > 0 ? entry.photos : entry.photo ? [entry.photo] : [];
+  useEffect(() => {
+    if (!photos[0]) return;
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) setAspectRatio(img.naturalWidth / img.naturalHeight);
+    };
+    img.src = photos[0];
+  }, [photos[0]]);
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el || !el.clientWidth) return;
+    setPhotoIdx(Math.round(el.scrollLeft / el.clientWidth));
+  };
   const submitComment = async () => {
     if (!text.trim()) return;
     await onComment(entry.id, text.trim());
@@ -864,7 +885,7 @@ function DealCard({ entry, profile, comments, me, onComment, onKudo, onDelete, o
       onClick: () => onOpenProfile(entry.authorSlug),
       sub: timeAgo(entry.createdAt)
     }
-  ), /* @__PURE__ */ React.createElement("span", { className: "cl-status cl-status-deal" }, /* @__PURE__ */ React.createElement(TagIcon, { size: 10 }), " Deal"), isMine && /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" })), entry.photo && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-wrap", onClick: () => onEnlarge(entry.photo) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "item", className: "cl-photo-full" }), /* @__PURE__ */ React.createElement("span", { className: "cl-enlarge-hint" }, /* @__PURE__ */ React.createElement(Maximize2, { size: 13 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-ig-actions" }, /* @__PURE__ */ React.createElement("button", { className: kudoed ? "cl-ig-icon active" : "cl-ig-icon", onClick: () => onKudo(entry.id), title: "Interested" }, /* @__PURE__ */ React.createElement(Heart, { size: 22, fill: kudoed ? "currentColor" : "none" })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => setShowComments((v) => !v), title: "Comment" }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => onShare(entry), title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 22 })), /* @__PURE__ */ React.createElement("div", { className: "cl-controls-spacer" }), /* @__PURE__ */ React.createElement(SaveButton, { saved, onToggle: () => onToggleSave(entry.id) })), kudos.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-ig-likes" }, kudos.length, " interested"), /* @__PURE__ */ React.createElement("div", { className: "cl-card-body" }, /* @__PURE__ */ React.createElement("p", { className: "cl-ig-caption" }, /* @__PURE__ */ React.createElement("b", null, profile?.name || entry.authorName), " ", entry.title), entry.price && /* @__PURE__ */ React.createElement("p", { className: "cl-deal-price" }, entry.price), entry.description && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, entry.description), entry.link && /* @__PURE__ */ React.createElement("a", { className: "cl-deal-link", href: entry.link, target: "_blank", rel: "noreferrer" }, /* @__PURE__ */ React.createElement(ExternalLink, { size: 13 }), " View listing"), !showComments && /* @__PURE__ */ React.createElement("button", { className: "cl-ig-viewcomments", onClick: () => setShowComments(true) }, comments.length > 0 ? `View all ${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Ask a question\u2026"), showComments && /* @__PURE__ */ React.createElement("div", { className: "cl-comments" }, comments.map((c, i) => /* @__PURE__ */ React.createElement("div", { className: "cl-comment", key: i }, /* @__PURE__ */ React.createElement("b", null, c.authorName), " ", c.text)), /* @__PURE__ */ React.createElement("div", { className: "cl-comment-input" }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("span", { className: "cl-status cl-status-deal" }, /* @__PURE__ */ React.createElement(TagIcon, { size: 10 }), " Deal"), isMine && /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" })), photos.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-wrap", style: { aspectRatio, cursor: "default" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-photo-scroll", ref: scrollRef, onScroll }, photos.map((p, i) => /* @__PURE__ */ React.createElement("img", { key: i, src: p, alt: "item", className: "cl-photo-slide", style: { cursor: "default" } }))), photos.length > 1 && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-dots" }, photos.map((_, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: i === photoIdx ? "cl-photo-dot active" : "cl-photo-dot" })))), /* @__PURE__ */ React.createElement("div", { className: "cl-ig-actions" }, /* @__PURE__ */ React.createElement("button", { className: kudoed ? "cl-ig-icon active" : "cl-ig-icon", onClick: () => onKudo(entry.id), title: "Interested" }, /* @__PURE__ */ React.createElement(Heart, { size: 22, fill: kudoed ? "currentColor" : "none" })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => setShowComments((v) => !v), title: "Comment" }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => onShare(entry), title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 22 })), /* @__PURE__ */ React.createElement("div", { className: "cl-controls-spacer" }), /* @__PURE__ */ React.createElement(SaveButton, { saved, onToggle: () => onToggleSave(entry.id) })), kudos.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-ig-likes" }, kudos.length, " interested"), /* @__PURE__ */ React.createElement("div", { className: "cl-card-body" }, /* @__PURE__ */ React.createElement("p", { className: "cl-ig-caption" }, /* @__PURE__ */ React.createElement("b", null, profile?.name || entry.authorName), " ", entry.title), entry.price && /* @__PURE__ */ React.createElement("p", { className: "cl-deal-price" }, entry.price), entry.description && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, entry.description), entry.link && /* @__PURE__ */ React.createElement("a", { className: "cl-deal-link", href: entry.link, target: "_blank", rel: "noreferrer" }, /* @__PURE__ */ React.createElement(ExternalLink, { size: 13 }), " View listing"), !showComments && /* @__PURE__ */ React.createElement("button", { className: "cl-ig-viewcomments", onClick: () => setShowComments(true) }, comments.length > 0 ? `View all ${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Ask a question\u2026"), showComments && /* @__PURE__ */ React.createElement("div", { className: "cl-comments" }, comments.map((c, i) => /* @__PURE__ */ React.createElement("div", { className: "cl-comment", key: i }, /* @__PURE__ */ React.createElement("b", null, c.authorName), " ", c.text)), /* @__PURE__ */ React.createElement("div", { className: "cl-comment-input" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       className: "cl-input",
@@ -873,7 +894,7 @@ function DealCard({ entry, profile, comments, me, onComment, onKudo, onDelete, o
       onChange: (e) => setText(e.target.value),
       onKeyDown: (e) => e.key === "Enter" && submitComment()
     }
-  ), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: submitComment }, /* @__PURE__ */ React.createElement(Send, { size: 15 })))), /* @__PURE__ */ React.createElement("p", { className: "cl-ig-timestamp" }, timeAgo(entry.createdAt))));
+  ), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: submitComment }, /* @__PURE__ */ React.createElement(Send, { size: 15 }))))));
 }
 function PostCard(props) {
   if (props.entry.kind === "deal") return /* @__PURE__ */ React.createElement(DealCard, { ...props });
@@ -890,18 +911,18 @@ function RecordRow({ entry, expanded, onToggle, children }) {
   const iconColor = primaryClimb ? gradeColor(primaryClimb.type, primaryClimb.grade) : "#8A8578";
   return /* @__PURE__ */ React.createElement("div", { className: "cl-record" }, /* @__PURE__ */ React.createElement("button", { className: "cl-record-row", onClick: onToggle }, best.photo ? /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon cl-record-icon-photo" }, /* @__PURE__ */ React.createElement("img", { src: best.photo, alt: "" })) : /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 16, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-record-info" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-record-sub" }, entry.gym, " \xB7 best try ", timeAgo(best.timestamp || entry.createdAt))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-cols" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, best.minutes > 0 ? formatDuration(best.minutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "time")), /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, attemptCount), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "tries"))), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus]), /* @__PURE__ */ React.createElement(ChevronDown, { size: 16, style: { transform: expanded ? "rotate(180deg)" : "none", flexShrink: 0 } })), expanded && /* @__PURE__ */ React.createElement("div", { className: "cl-record-expanded" }, children));
 }
-function LogDetailModal({ entry, onClose }) {
+function LogDetailModal({ entry, onClose, onEnlarge }) {
   const updates = [...entry.updates || []].reverse();
   const totalTries = entry.updates.reduce((s, u) => s + (u.attemptLog ? u.attemptLog.length : 1), 0);
   const sentCount = entry.updates.filter((u) => (u.climbs || []).some((c) => c.status === "sent")).length;
   const totalMinutes = entry.updates.reduce((s, u) => s + (Number(u.minutes) || 0), 0);
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, entry.title), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("p", { className: "cl-record-detail-gym", style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", entry.gym), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, entry.updates.length), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totalMinutes) || "0m"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-table", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-table-head" }, /* @__PURE__ */ React.createElement("span", null, "Date"), /* @__PURE__ */ React.createElement("span", null, "Grade"), /* @__PURE__ */ React.createElement("span", null, "Time"), /* @__PURE__ */ React.createElement("span", null, "Tries"), /* @__PURE__ */ React.createElement("span", null, "Result")), updates.map((u) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, entry.title), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("p", { className: "cl-record-detail-gym", style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", entry.gym), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, entry.updates.length), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totalMinutes) || "0m"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
     const attemptCount = u.attemptLog ? u.attemptLog.length : 1;
     const success = (u.climbs || []).some((c) => c.status === "sent");
-    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-table-row", key: u.id }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric" })), /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-grade" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade }))), /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-time" }, u.minutes > 0 ? formatDuration(u.minutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-tries" }, attemptCount), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? "Sent" : "Trying"));
+    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, u.photo && /* @__PURE__ */ React.createElement("img", { src: u.photo, alt: "", className: "cl-log-detail-photo", onClick: () => onEnlarge && onEnlarge(u.photo, u.points) }), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? "Sent" : "Trying")), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note));
   }))));
 }
-function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onEnlarge, onShare, onShareToPost }) {
+function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onEnlarge, onShare, onShareToPost, onOpenLogDetail }) {
   const [addingTry, setAddingTry] = useState(false);
   const [expandedTry, setExpandedTry] = useState(null);
   const updates = [...entry.updates || []].reverse();
@@ -911,7 +932,7 @@ function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLo
   const sentCount = entry.updates.filter((u) => (u.climbs || []).some((c) => c.status === "sent")).length;
   const totalMinutes = entry.updates.reduce((s, u) => s + (Number(u.minutes) || 0), 0);
   const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0] }], formId: entry.id } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-record-detail" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-detail-head" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-detail-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", entry.gym), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareToPost(entry), title: "Share to post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 14 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShare(entry), title: "Share as picture" }, /* @__PURE__ */ React.createElement(Share2, { size: 14 })), isMine && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onTogglePrivacy(entry.id), title: entry.privacy === "private" ? "Private \u2014 tap to make public" : "Public \u2014 tap to make private" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 14 }) : /* @__PURE__ */ React.createElement(Globe, { size: 14 })), /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" }))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, entry.updates.length), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, sentCount), /* @__PURE__ */ React.createElement("span", null, "finished")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totalMinutes) || "0m"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-table" }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-table-head" }, /* @__PURE__ */ React.createElement("span", null, "Date"), /* @__PURE__ */ React.createElement("span", null, "Grade"), /* @__PURE__ */ React.createElement("span", null, "Time"), /* @__PURE__ */ React.createElement("span", null, "Tries"), /* @__PURE__ */ React.createElement("span", null, "Result")), updates.map((u) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-record-detail" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-detail-head" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-detail-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", entry.gym), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onOpenLogDetail(entry), title: "Open full page" }, /* @__PURE__ */ React.createElement(Maximize2, { size: 14 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareToPost(entry), title: "Share to post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 14 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShare(entry), title: "Share as picture" }, /* @__PURE__ */ React.createElement(Share2, { size: 14 })), isMine && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onTogglePrivacy(entry.id), title: entry.privacy === "private" ? "Private \u2014 tap to make public" : "Public \u2014 tap to make private" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 14 }) : /* @__PURE__ */ React.createElement(Globe, { size: 14 })), /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" }))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, entry.updates.length), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, sentCount), /* @__PURE__ */ React.createElement("span", null, "finished")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totalMinutes) || "0m"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-table" }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-table-head" }, /* @__PURE__ */ React.createElement("span", null, "Date"), /* @__PURE__ */ React.createElement("span", null, "Grade"), /* @__PURE__ */ React.createElement("span", null, "Time"), /* @__PURE__ */ React.createElement("span", null, "Tries"), /* @__PURE__ */ React.createElement("span", null, "Result")), updates.map((u) => {
     const attemptCount = u.attemptLog ? u.attemptLog.length : 1;
     const success = (u.climbs || []).some((c) => c.status === "sent");
     const hasExtra = u.technique && u.technique.length > 0 || u.satisfaction > 0 || u.note || u.photo;
@@ -1308,22 +1329,103 @@ function drawMinimalDesign(ctx, W, H, data) {
   ctx.fillText("CHALKLINE", W / 2, H - 34);
   ctx.textAlign = "left";
 }
+function generateQRDataUrl(text, size) {
+  return new Promise((resolve, reject) => {
+    loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js", () => !!window.QRCode).then(() => {
+      const div = document.createElement("div");
+      new window.QRCode(div, { text, width: size, height: size, colorDark: "#22241F", colorLight: "#FFFFFF" });
+      setTimeout(() => {
+        const img = div.querySelector("img");
+        const canvas = div.querySelector("canvas");
+        if (img && img.src) resolve(img.src);
+        else if (canvas) resolve(canvas.toDataURL());
+        else reject(new Error("QR generation failed"));
+      }, 60);
+    }).catch(reject);
+  });
+}
+function drawProfileTagDesign(ctx, W, H, data, img, qrImg) {
+  ctx.fillStyle = data.accentColor || "#22241F";
+  ctx.fillRect(0, 0, W, H);
+  const cx = W / 2, photoR = 150, photoCy = H * 0.32;
+  if (img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, photoCy, photoR, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    const scale = Math.max(photoR * 2 / img.width, photoR * 2 / img.height);
+    const sw = img.width * scale, sh = img.height * scale;
+    ctx.drawImage(img, cx - sw / 2, photoCy - sh / 2, sw, sh);
+    ctx.restore();
+  }
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.beginPath();
+  ctx.arc(cx, photoCy, photoR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.textAlign = "center";
+  ctx.font = "800 56px sans-serif";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(data.name || "", cx, photoCy + photoR + 80);
+  ctx.font = "600 24px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.fillText(`@${data.username || ""}`, cx, photoCy + photoR + 118);
+  ctx.font = "500 20px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  let y = photoCy + photoR + 156;
+  (data.statsLines || []).slice(0, 2).forEach((line) => {
+    ctx.fillText(line, cx, y);
+    y += 30;
+  });
+  if (qrImg) {
+    const qs = 130, margin = 34;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(W - qs - margin - 10, H - qs - margin - 10, qs + 20, qs + 20);
+    ctx.drawImage(qrImg, W - qs - margin, H - qs - margin, qs, qs);
+  }
+  ctx.textAlign = "left";
+  ctx.font = "700 16px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillText("CHALKLINE", 34, H - 34);
+}
 function ShareCardModal({ data, onClose }) {
   const canvasRef = useRef();
   const [imgUrl, setImgUrl] = useState(null);
-  const [copied, setCopied] = useState(false);
   const [design, setDesign] = useState("badge");
+  const isProfile = data.variant === "profile";
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     const W = 800, H = 1e3;
     canvas.width = W;
     canvas.height = H;
+    const finish = () => setImgUrl(canvas.toDataURL("image/png"));
+    if (isProfile) {
+      const link = `${window.location.origin}${window.location.pathname}?u=${encodeURIComponent(data.username || "")}`;
+      const loadPhoto = data.photo ? new Promise((resolve) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => resolve(null);
+        im.src = data.photo;
+      }) : Promise.resolve(null);
+      const loadQr = generateQRDataUrl(link, 260).then((url) => new Promise((resolve) => {
+        const im = new Image();
+        im.onload = () => resolve(im);
+        im.onerror = () => resolve(null);
+        im.src = url;
+      })).catch(() => null);
+      Promise.all([loadPhoto, loadQr]).then(([photoImg, qrImg]) => {
+        drawProfileTagDesign(ctx, W, H, data, photoImg, qrImg);
+        finish();
+      });
+      return;
+    }
     const render = (img) => {
       if (design === "badge") drawBadgeDesign(ctx, W, H, data, img);
       else if (design === "stats") drawStatsDesign(ctx, W, H, data, img);
       else drawMinimalDesign(ctx, W, H, data);
-      setImgUrl(canvas.toDataURL("image/png"));
+      finish();
     };
     if (data.photo && design !== "minimal") {
       const img = new Image();
@@ -1350,17 +1452,24 @@ function ShareCardModal({ data, onClose }) {
       window.open(imgUrl, "_blank");
     }
   };
-  const copyText = () => {
-    const link = `${window.location.origin}${window.location.pathname}?u=${encodeURIComponent(data.username || "")}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(link).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }).catch(() => {
-      });
+  const shareImage = async () => {
+    try {
+      const res = await fetch(imgUrl);
+      const blob = await res.blob();
+      const file = new File([blob], "chalkline-share.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Chalkline", text: data.achievement || "" });
+        return;
+      }
+      if (navigator.share) {
+        await navigator.share({ title: "Chalkline", text: data.achievement || "" });
+        return;
+      }
+      download();
+    } catch {
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, SHARE_DESIGNS.map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: copyText }, copied ? "Copied!" : "Copy link"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: download, disabled: !imgUrl }, "Download image"))));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, !isProfile && /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, SHARE_DESIGNS.map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
 }
 function GuestProfileView({ username, onGoToLogin }) {
   const [profile, setProfile] = useState(null);
@@ -1453,12 +1562,15 @@ function SocialPostOverlay({ myLogs, onClose, onSavePost, onSaveDeal, initialAtt
 }
 function SharePostModal({ entry, profile, me, profiles, onClose, sendMessage, onOpenChat }) {
   const [copied, setCopied] = useState(false);
+  const isDeal = entry.kind === "deal";
+  const shareText = isDeal ? entry.title : entry.caption;
+  const noun = isDeal ? "deal" : "post";
   const link = `${window.location.origin}${window.location.pathname}?u=${encodeURIComponent(profile && profile.username || profile && profile.slug || "")}`;
   const friendSlugs = profiles[me] && profiles[me].following || [];
   const shareLink = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Chalkline", text: entry.caption || "Check this out on Chalkline", url: link });
+        await navigator.share({ title: "Chalkline", text: shareText || "Check this out on Chalkline", url: link });
         return;
       } catch {
       }
@@ -1472,12 +1584,12 @@ function SharePostModal({ entry, profile, me, profiles, onClose, sendMessage, on
     }
   };
   const shareToFriend = async (friendSlug) => {
-    const text = entry.caption ? `Shared a post: "${entry.caption}" ${link}` : `Shared a post: ${link}`;
+    const text = shareText ? `Shared a ${noun}: "${shareText}" ${link}` : `Shared a ${noun}: ${link}`;
     await sendMessage(friendSlug, text);
     onClose();
     onOpenChat(friendSlug);
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareLink }, /* @__PURE__ */ React.createElement(ExternalLink, { size: 14, style: { marginRight: 6 } }), " ", copied ? "Link copied!" : "Share link"), /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 6 } }, "Opens your device's share sheet \u2014 WhatsApp, Messages, or anywhere else. Copies the link if that's not available."), friendSlugs.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 20 } }, "Send to a friend"), /* @__PURE__ */ React.createElement("div", { className: "cl-resume-list" }, friendSlugs.map((slug) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share ", noun), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareLink }, /* @__PURE__ */ React.createElement(ExternalLink, { size: 14, style: { marginRight: 6 } }), " ", copied ? "Link copied!" : "Share link"), /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 6 } }, "Opens your device's share sheet \u2014 WhatsApp, Messages, or anywhere else. Copies the link if that's not available."), friendSlugs.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 20 } }, "Send to a friend"), /* @__PURE__ */ React.createElement("div", { className: "cl-resume-list" }, friendSlugs.map((slug) => {
     const p = profiles[slug];
     if (!p) return null;
     return /* @__PURE__ */ React.createElement("button", { key: slug, className: "cl-resume-item", onClick: () => shareToFriend(slug) }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 32 }), /* @__PURE__ */ React.createElement("span", null, p.name), /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }));
@@ -1524,7 +1636,7 @@ function SocialPostCard({ entry, profile, comments, me, allLogs, onComment, onKu
       onClick: () => onOpenProfile(entry.authorSlug),
       sub: timeAgo(entry.createdAt)
     }
-  ), isMine && /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" })), photos.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-wrap", style: { aspectRatio, cursor: "default" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-photo-scroll", ref: scrollRef, onScroll }, photos.map((p, i) => /* @__PURE__ */ React.createElement("img", { key: i, src: p, alt: "", className: "cl-photo-slide", onClick: () => onEnlarge(p) }))), photos.length > 1 && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-dots" }, photos.map((_, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: i === photoIdx ? "cl-photo-dot active" : "cl-photo-dot" })))), /* @__PURE__ */ React.createElement("div", { className: "cl-ig-actions" }, /* @__PURE__ */ React.createElement("button", { className: kudoed ? "cl-ig-icon active" : "cl-ig-icon", onClick: () => onKudo(entry.id), title: "Nice" }, /* @__PURE__ */ React.createElement(Heart, { size: 22, fill: kudoed ? "currentColor" : "none" })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => setShowComments((v) => !v), title: "Comment" }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => onShare(entry), title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 22 })), /* @__PURE__ */ React.createElement("div", { className: "cl-controls-spacer" }), /* @__PURE__ */ React.createElement(SaveButton, { saved, onToggle: () => onToggleSave(entry.id) })), kudos.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-ig-likes" }, kudos.length, " ", kudos.length === 1 ? "like" : "likes"), /* @__PURE__ */ React.createElement("div", { className: "cl-card-body" }, entry.caption && /* @__PURE__ */ React.createElement("p", { className: "cl-ig-caption" }, /* @__PURE__ */ React.createElement("b", null, profile?.name || entry.authorName), " ", entry.caption), attachedLog && /* @__PURE__ */ React.createElement("button", { className: "cl-attached-log", onClick: () => onOpenLogDetail(attachedLog) }, /* @__PURE__ */ React.createElement(Layers, { size: 13 }), /* @__PURE__ */ React.createElement("span", null, attachedLog.title), attachedClimb && /* @__PURE__ */ React.createElement(GradeChip, { type: attachedClimb.type, grade: attachedClimb.grade, status: attachedClimb.status }), /* @__PURE__ */ React.createElement(ChevronRight, { size: 14, style: { marginLeft: "auto" } })), !showComments && /* @__PURE__ */ React.createElement("button", { className: "cl-ig-viewcomments", onClick: () => setShowComments(true) }, comments.length > 0 ? `View all ${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Add a comment\u2026"), showComments && /* @__PURE__ */ React.createElement("div", { className: "cl-comments" }, comments.map((c, i) => /* @__PURE__ */ React.createElement("div", { className: "cl-comment", key: i }, /* @__PURE__ */ React.createElement("b", null, c.authorName), " ", c.text)), /* @__PURE__ */ React.createElement("div", { className: "cl-comment-input" }, /* @__PURE__ */ React.createElement(
+  ), isMine && /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" })), photos.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-wrap", style: { aspectRatio, cursor: "default" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-photo-scroll", ref: scrollRef, onScroll }, photos.map((p, i) => /* @__PURE__ */ React.createElement("img", { key: i, src: p, alt: "", className: "cl-photo-slide", style: { cursor: "default" } }))), photos.length > 1 && /* @__PURE__ */ React.createElement("div", { className: "cl-photo-dots" }, photos.map((_, i) => /* @__PURE__ */ React.createElement("span", { key: i, className: i === photoIdx ? "cl-photo-dot active" : "cl-photo-dot" })))), /* @__PURE__ */ React.createElement("div", { className: "cl-ig-actions" }, /* @__PURE__ */ React.createElement("button", { className: kudoed ? "cl-ig-icon active" : "cl-ig-icon", onClick: () => onKudo(entry.id), title: "Nice" }, /* @__PURE__ */ React.createElement(Heart, { size: 22, fill: kudoed ? "currentColor" : "none" })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => setShowComments((v) => !v), title: "Comment" }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-ig-icon", onClick: () => onShare(entry), title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 22 })), /* @__PURE__ */ React.createElement("div", { className: "cl-controls-spacer" }), /* @__PURE__ */ React.createElement(SaveButton, { saved, onToggle: () => onToggleSave(entry.id) })), kudos.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-ig-likes" }, kudos.length, " ", kudos.length === 1 ? "like" : "likes"), /* @__PURE__ */ React.createElement("div", { className: "cl-card-body" }, entry.caption && /* @__PURE__ */ React.createElement("p", { className: "cl-ig-caption" }, /* @__PURE__ */ React.createElement("b", null, profile?.name || entry.authorName), " ", entry.caption), attachedLog && /* @__PURE__ */ React.createElement("button", { className: "cl-attached-log", onClick: () => onOpenLogDetail(attachedLog) }, /* @__PURE__ */ React.createElement(Layers, { size: 13 }), /* @__PURE__ */ React.createElement("span", null, attachedLog.title), attachedClimb && /* @__PURE__ */ React.createElement(GradeChip, { type: attachedClimb.type, grade: attachedClimb.grade, status: attachedClimb.status }), /* @__PURE__ */ React.createElement(ChevronRight, { size: 14, style: { marginLeft: "auto" } })), !showComments && /* @__PURE__ */ React.createElement("button", { className: "cl-ig-viewcomments", onClick: () => setShowComments(true) }, comments.length > 0 ? `View all ${comments.length} comment${comments.length === 1 ? "" : "s"}` : "Add a comment\u2026"), showComments && /* @__PURE__ */ React.createElement("div", { className: "cl-comments" }, comments.map((c, i) => /* @__PURE__ */ React.createElement("div", { className: "cl-comment", key: i }, /* @__PURE__ */ React.createElement("b", null, c.authorName), " ", c.text)), /* @__PURE__ */ React.createElement("div", { className: "cl-comment-input" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       className: "cl-input",
@@ -1573,7 +1685,7 @@ function SettingsOverlay({ profile, onSave, onClose }) {
     return /* @__PURE__ */ React.createElement("button", { key: t, type: "button", className: active ? "cl-qual-chip active" : "cl-qual-chip", onClick: () => toggleTracked(t) }, /* @__PURE__ */ React.createElement(Icon, { size: 13 }), " ", TYPE_LABELS[t], " ", active && /* @__PURE__ */ React.createElement(Check, { size: 12 }));
   })), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Show for those types"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, [["count", "How many"], ["hours", "Time"], ["both", "Both"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: (draft.statMetric || DEFAULT_STAT_METRIC) === val ? "cl-toggle active" : "cl-toggle", onClick: () => setDraft({ ...draft, statMetric: val }) }, lbl))), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Appearance"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, [["light", "Light"], ["dark", "Dark"], ["system", "Match device"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: (draft.themeMode || "light") === val ? "cl-toggle active" : "cl-toggle", onClick: () => setDraft({ ...draft, themeMode: val }) }, lbl))), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Accent colour"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: (draft.themeColor || "accent") === "accent" ? "cl-toggle active" : "cl-toggle", onClick: () => setDraft({ ...draft, themeColor: "accent" }) }, "Default"), /* @__PURE__ */ React.createElement("button", { className: draft.themeColor === "boulder" ? "cl-toggle active" : "cl-toggle", onClick: () => setDraft({ ...draft, themeColor: "boulder" }) }, "Match my boulder grade")), /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 14 } }, "Your password is managed securely through your account \u2014 there's no separate passcode to set here anymore."), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onClose }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: save }, "Save settings"))));
 }
-function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, commentsMap, addLog, addComment, toggleKudo, deleteLog, addTry, togglePrivacy, toggleSave, loading, onOpenProfile, onOpenQR, onOpenSettings, onEnlarge, onOpenNewPost, onLiveLog, onShare, onShareProfile, onShareBadge, onShareToday, onShareToPost }) {
+function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, commentsMap, addLog, addComment, toggleKudo, deleteLog, addTry, togglePrivacy, toggleSave, loading, onOpenProfile, onOpenQR, onOpenSettings, onEnlarge, onOpenNewPost, onLiveLog, onShare, onShareProfile, onShareBadge, onShareToday, onShareToPost, onOpenLogDetail }) {
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
@@ -1635,7 +1747,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
       onLeftAction: view === "records" && recordGroups.length > 0 && recordGroups[0].label === "Today" ? onShareToday : null,
       leftActionIcon: /* @__PURE__ */ React.createElement(Share2, { size: 14 })
     }
-  ), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, gi > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-day-header" }, group.label), group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, expanded: expandedRecord === entry.id, onToggle: () => setExpandedRecord(expandedRecord === entry.id ? null : entry.id) }, /* @__PURE__ */ React.createElement(RecordDetail, { entry, me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onLiveLog, onEnlarge, onShare, onShareToPost }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
+  ), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, gi > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-day-header" }, group.label), group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, expanded: expandedRecord === entry.id, onToggle: () => setExpandedRecord(expandedRecord === entry.id ? null : entry.id) }, /* @__PURE__ */ React.createElement(RecordDetail, { entry, me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onLiveLog, onEnlarge, onShare, onShareToPost, onOpenLogDetail }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
       key: entry.id,
@@ -1994,7 +2106,7 @@ function ChalklineApp() {
       description: data.description,
       price: data.price,
       link: data.link,
-      photo: data.photo,
+      photos: data.photos,
       privacy: data.privacy,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -2021,42 +2133,29 @@ function ChalklineApp() {
   };
   const onShare = (entry) => {
     const author = profiles[entry.authorSlug] || profiles[me];
-    if (entry.kind === "post") {
+    if (entry.kind === "post" || entry.kind === "deal") {
       setSharePostData({ entry, profile: author });
-      return;
-    }
-    if (entry.kind === "deal") {
-      setShareData({
-        name: author.name,
-        username: author.username,
-        place: "For sale",
-        achievement: entry.title,
-        statsLines: [entry.price || "", entry.description ? entry.description.slice(0, 60) : ""].filter(Boolean),
-        photo: entry.photo,
-        accentColor: "#3A4A63",
-        date: new Date(entry.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })
-      });
       return;
     }
     const latest = entry.updates[entry.updates.length - 1];
     const primary = (latest.climbs || [])[0];
     const finished = (latest.climbs || []).some((c) => c.status === "sent");
     const gradeText = primary ? primary.type === "boulder" ? primary.grade : usGrade(primary.grade) : "";
-    const achievement = primary ? `${TYPE_LABELS[primary.type]} ${gradeText}` : entry.title;
+    const gradeLabel = primary ? `${TYPE_LABELS[primary.type]} ${gradeText}` : entry.title;
     const attemptSummary = latest.attemptLog && latest.attemptLog.length > 0 ? summarizeAttempts(latest.attemptLog) : null;
     setShareData({
       name: author.name,
       username: author.username,
       place: entry.gym,
-      achievement,
-      statusLabel: finished ? "Sent" : "Trying",
+      achievement: finished ? "Sent!" : "Trying",
+      statusLabel: gradeLabel,
       statsLines: [
         entry.title,
         latest.minutes > 0 ? `Time: ${formatDuration(latest.minutes)}` : null,
         attemptSummary
       ].filter(Boolean),
       photo: latest.photo,
-      accentColor: "#C4501F",
+      accentColor: finished ? "#6B8E4E" : "#C4501F",
       date: new Date(latest.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })
     });
   };
@@ -2064,6 +2163,7 @@ function ChalklineApp() {
     const mine = logs.filter((l) => l.authorSlug === me);
     const stats = computeStats(mine);
     setShareData({
+      variant: "profile",
       name: profiles[me].name,
       username: profiles[me].username,
       place: profiles[me].mainGym || "",
@@ -2071,7 +2171,7 @@ function ChalklineApp() {
       statusLabel: "All-time stats",
       statsLines: [`${stats.totalTries} climbs logged`, `${formatDuration(stats.totalMinutes) || "0m"} climbed`],
       photo: profiles[me].photo,
-      accentColor: "#6B8E4E",
+      accentColor: "#22241F",
       date: profiles[me].since ? `Climbing since ${profiles[me].since}` : ""
     });
   };
@@ -2093,6 +2193,7 @@ function ChalklineApp() {
     const mine = logs.filter((l) => l.authorSlug === me && l.kind === "climb");
     let tries = 0, sent = 0, minutes = 0;
     const climbLines = [];
+    let bestPhoto = null, bestScore = -1;
     mine.forEach((l) => {
       (l.updates || []).forEach((u) => {
         if (new Date(u.timestamp).toDateString() !== todayStr) return;
@@ -2101,6 +2202,13 @@ function ChalklineApp() {
         (u.climbs || []).forEach((c) => {
           tries++;
           if (c.status === "sent") sent++;
+          if (u.photo) {
+            const score = (c.status === "sent" ? 1e3 : 0) + gradeRank(c.type, c.grade);
+            if (score > bestScore) {
+              bestScore = score;
+              bestPhoto = u.photo;
+            }
+          }
         });
         climbLines.push(`${l.title}: ${formatDuration(u.minutes) || "0m"} \xB7 ${attemptCount} attempt${attemptCount === 1 ? "" : "s"}`);
       });
@@ -2112,7 +2220,7 @@ function ChalklineApp() {
       achievement: `${sent} sent today`,
       statusLabel: "Today's session",
       statsLines: [`${tries} climbs tried \xB7 ${formatDuration(minutes) || "0m"} total`, ...climbLines].slice(0, 6),
-      photo: profiles[me].photo,
+      photo: bestPhoto || profiles[me].photo,
       accentColor: "#6B4C93",
       date: (/* @__PURE__ */ new Date()).toLocaleDateString(void 0, { weekday: "long", month: "short", day: "numeric" })
     });
@@ -2372,7 +2480,7 @@ function ChalklineApp() {
 
         .cl-chip-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
         .cl-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid; border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
-        .cl-chip-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .cl-chip-dot { width: 8px; height: 8px; min-width: 8px; min-height: 8px; border-radius: 50%; flex-shrink: 0; }
         .cl-chip-na { border: 1.5px solid var(--line); color: var(--ink-soft); font-weight: 500; }
 
         .cl-qual-row, .cl-invite-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
@@ -2576,6 +2684,11 @@ function ChalklineApp() {
         .cl-day-group { display: flex; flex-direction: column; gap: 8px; }
         .cl-day-header { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 0; }
         .cl-record-summary { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 0; background: var(--bg); }
+        .cl-log-detail-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+        .cl-log-detail-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+        .cl-log-detail-photo { width: 100%; max-height: 260px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; cursor: zoom-in; display: block; }
+        .cl-log-detail-row-top { display: flex; align-items: center; justify-content: space-between; }
+        .cl-log-detail-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
         .cl-record-summary div { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 1px; }
         .cl-record-summary b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
         .cl-record-summary span { font-size: 9px; color: var(--ink-soft); }
@@ -2662,6 +2775,7 @@ function ChalklineApp() {
         .cl-point-marker.end { background: #C4501F; }
 
         .cl-share-preview { width: 100%; max-width: 340px; border-radius: 10px; margin: 10px 0; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+        .cl-share-download-btn { display: inline-flex; margin: 10px auto 0; width: auto !important; padding: 6px 14px !important; font-size: 12px !important; }
 
         .cl-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 200; display: flex; align-items: center; justify-content: center; }
         .cl-lightbox-imgwrap { position: relative; max-width: 94vw; max-height: 88vh; }
@@ -2704,7 +2818,8 @@ function ChalklineApp() {
       onShareProfile: shareProfileStats,
       onShareBadge: shareBadge,
       onShareToday: shareToday,
-      onShareToPost: (entry) => setShowSocialPost({ attachLogId: entry.id })
+      onShareToPost: (entry) => setShowSocialPost({ attachLogId: entry.id }),
+      onOpenLogDetail: setViewingLogDetail
     }
   ), tab === "feed" && /* @__PURE__ */ React.createElement(
     FeedTab,
@@ -2803,7 +2918,7 @@ function ChalklineApp() {
       sendMessage,
       onOpenChat: goToChat
     }
-  ), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: viewingLogDetail, onClose: () => setViewingLogDetail(null) }), lightbox && /* @__PURE__ */ React.createElement("div", { className: "cl-lightbox", onClick: () => setLightbox(null) }, /* @__PURE__ */ React.createElement("button", { className: "cl-lightbox-close", onClick: () => setLightbox(null) }, /* @__PURE__ */ React.createElement(X, { size: 18 })), /* @__PURE__ */ React.createElement("div", { className: "cl-lightbox-imgwrap", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("img", { src: lightbox.photo, alt: "enlarged" }), normalizePoints(lightbox.points).start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `ls${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), normalizePoints(lightbox.points).end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `le${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E"))))));
+  ), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: viewingLogDetail, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }) }), lightbox && /* @__PURE__ */ React.createElement("div", { className: "cl-lightbox", onClick: () => setLightbox(null) }, /* @__PURE__ */ React.createElement("button", { className: "cl-lightbox-close", onClick: () => setLightbox(null) }, /* @__PURE__ */ React.createElement(X, { size: 18 })), /* @__PURE__ */ React.createElement("div", { className: "cl-lightbox-imgwrap", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("img", { src: lightbox.photo, alt: "enlarged" }), normalizePoints(lightbox.points).start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `ls${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), normalizePoints(lightbox.points).end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `le${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E"))))));
 }
 var ErrorBoundary = class extends React.Component {
   constructor(props) {
