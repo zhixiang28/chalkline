@@ -74,6 +74,29 @@
     return { prefix: key.slice(0, idx), id: key.slice(idx + 1) };
   }
 
+  // Read-only bridge for logged-out visitors opening a shared profile link
+  // (?u=username). Only ever reads public data — never writes anything.
+  window.chalklineGuest = {
+    async getProfileByUsername(username) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("data")
+        .filter("data->>username", "eq", username)
+        .maybeSingle();
+      if (error || !data) return null;
+      return data.data;
+    },
+    async getPublicPosts(authorSlug) {
+      const { data, error } = await supabase
+        .from("posts")
+        .select("data")
+        .eq("author_slug", authorSlug)
+        .eq("privacy", "public");
+      if (error) return [];
+      return (data || []).map((r) => r.data).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    },
+  };
+
   window.storage = {
     async get(key, shared) {
       if (!shared) {
