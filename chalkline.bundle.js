@@ -415,7 +415,8 @@ async function safeSet(key, value, shared) {
   try {
     await window.storage.set(key, value, shared);
     return true;
-  } catch {
+  } catch (err) {
+    console.error("Chalkline: failed to save", key, err);
     return false;
   }
 }
@@ -909,7 +910,9 @@ function RecordRow({ entry, expanded, onToggle, children }) {
   const primaryClimb = (best.climbs || [])[0];
   const Icon = primaryClimb ? TYPE_ICONS[primaryClimb.type] : Mountain;
   const iconColor = primaryClimb ? gradeColor(primaryClimb.type, primaryClimb.grade) : "#8A8578";
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-record" }, /* @__PURE__ */ React.createElement("button", { className: "cl-record-row", onClick: onToggle }, best.photo ? /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon cl-record-icon-photo" }, /* @__PURE__ */ React.createElement("img", { src: best.photo, alt: "" })) : /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 16, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-record-info" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-record-sub" }, entry.gym, " \xB7 best try ", timeAgo(best.timestamp || entry.createdAt))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-cols" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, best.minutes > 0 ? formatDuration(best.minutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "time")), /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, attemptCount), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "tries"))), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus]), /* @__PURE__ */ React.createElement(ChevronDown, { size: 16, style: { transform: expanded ? "rotate(180deg)" : "none", flexShrink: 0 } })), expanded && /* @__PURE__ */ React.createElement("div", { className: "cl-record-expanded" }, children));
+  const fallbackPhoto = best.photo ? null : [...updates].reverse().find((u) => u.photo)?.photo;
+  const displayPhoto = best.photo || fallbackPhoto;
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-record" }, /* @__PURE__ */ React.createElement("button", { className: "cl-record-row", onClick: onToggle }, displayPhoto ? /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon cl-record-icon-photo" }, /* @__PURE__ */ React.createElement("img", { src: displayPhoto, alt: "" })) : /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 16, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-record-info" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-record-sub" }, entry.gym, " \xB7 best try ", timeAgo(best.timestamp || entry.createdAt))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-cols" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, best.minutes > 0 ? formatDuration(best.minutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "time")), /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, attemptCount), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "tries"))), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus]), /* @__PURE__ */ React.createElement(ChevronDown, { size: 16, style: { transform: expanded ? "rotate(180deg)" : "none", flexShrink: 0 } })), expanded && /* @__PURE__ */ React.createElement("div", { className: "cl-record-expanded" }, children));
 }
 function LogDetailModal({ entry, onClose, onEnlarge }) {
   const updates = [...entry.updates || []].reverse();
@@ -919,7 +922,9 @@ function LogDetailModal({ entry, onClose, onEnlarge }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, entry.title), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("p", { className: "cl-record-detail-gym", style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", entry.gym), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, entry.updates.length), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totalMinutes) || "0m"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
     const attemptCount = u.attemptLog ? u.attemptLog.length : 1;
     const success = (u.climbs || []).some((c) => c.status === "sent");
-    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, u.photo && /* @__PURE__ */ React.createElement("img", { src: u.photo, alt: "", className: "cl-log-detail-photo", onClick: () => onEnlarge && onEnlarge(u.photo, u.points) }), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? "Sent" : "Trying")), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note));
+    const pts = normalizePoints(u.points);
+    const hasPoints = pts.start.length > 0 || pts.end.length > 0;
+    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, u.photo && /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap" }, /* @__PURE__ */ React.createElement("img", { src: u.photo, alt: "", className: "cl-log-detail-photo" }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? "Sent" : "Trying")), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1m"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note));
   }))));
 }
 function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onEnlarge, onShare, onShareToPost, onOpenLogDetail }) {
@@ -1057,10 +1062,10 @@ function PeopleSearch({ me, profiles, onClose, onOpenProfile }) {
       onClose();
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Find people"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by name or username\u2026", value: query, onChange: (e) => setQuery(e.target.value), autoFocus: true })), /* @__PURE__ */ React.createElement("div", { className: "cl-resume-list" }, results.map((p) => /* @__PURE__ */ React.createElement("button", { key: p.slug, className: "cl-resume-item", onClick: () => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Find people"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-qr-scan-section", style: { border: "none", padding: 0, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Enter their username"), /* @__PURE__ */ React.createElement("div", { className: "cl-inline-add" }, /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: manualCode, onChange: (e) => setManualCode(e.target.value), placeholder: "Their username" }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: goToCode }, /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by name or username\u2026", value: query, onChange: (e) => setQuery(e.target.value), autoFocus: true })), /* @__PURE__ */ React.createElement("div", { className: "cl-resume-list" }, results.map((p) => /* @__PURE__ */ React.createElement("button", { key: p.slug, className: "cl-resume-item", onClick: () => {
     onOpenProfile(p.slug);
     onClose();
-  } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 32 }), /* @__PURE__ */ React.createElement("span", null, p.name), /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))), query && results.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No match.")), /* @__PURE__ */ React.createElement("div", { className: "cl-qr-scan-section" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Or enter their username"), /* @__PURE__ */ React.createElement("div", { className: "cl-inline-add" }, /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: manualCode, onChange: (e) => setManualCode(e.target.value), placeholder: "Their username" }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: goToCode }, /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))))));
+  } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 32 }), /* @__PURE__ */ React.createElement("span", null, p.name), /* @__PURE__ */ React.createElement(ChevronRight, { size: 16 }))), query && results.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No match."))));
 }
 var TECHNIQUE_PRESETS = ["Heel hook", "Toe hook", "Dyno", "Mantle", "Crimp", "Sloper", "Flag", "Drop knee", "Compression", "Smearing"];
 var FALL_POSITIONS = ["1/4", "1/2", "3/4"];
@@ -1344,7 +1349,56 @@ function generateQRDataUrl(text, size) {
     }).catch(reject);
   });
 }
-function drawProfileTagDesign(ctx, W, H, data, img, qrImg) {
+var NAME_TAG_DESIGNS = [
+  { id: "blurred", label: "Blurred" },
+  { id: "classic", label: "Classic" },
+  { id: "card", label: "Card" }
+];
+function drawNameTagBlurred(ctx, W, H, data, img, qrImg) {
+  ctx.fillStyle = "#161712";
+  ctx.fillRect(0, 0, W, H);
+  if (img) {
+    ctx.save();
+    ctx.filter = "blur(24px) brightness(0.45)";
+    const scale = Math.max(W / img.width, H / img.height) * 1.15;
+    const sw = img.width * scale, sh = img.height * scale;
+    ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
+    ctx.restore();
+  }
+  const cx = W / 2, photoR = 140, photoCy = H * 0.34;
+  if (img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, photoCy, photoR, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    const scale2 = Math.max(photoR * 2 / img.width, photoR * 2 / img.height);
+    const sw2 = img.width * scale2, sh2 = img.height * scale2;
+    ctx.drawImage(img, cx - sw2 / 2, photoCy - sh2 / 2, sw2, sh2);
+    ctx.restore();
+  }
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "#FFFFFF";
+  ctx.beginPath();
+  ctx.arc(cx, photoCy, photoR, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.textAlign = "center";
+  ctx.font = "800 54px sans-serif";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(data.name || "", cx, photoCy + photoR + 74);
+  ctx.font = "600 23px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.fillText(`@${data.username || ""}`, cx, photoCy + photoR + 110);
+  ctx.font = "500 19px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  let y = photoCy + photoR + 146;
+  (data.statsLines || []).slice(0, 2).forEach((line) => {
+    ctx.fillText(line, cx, y);
+    y += 28;
+  });
+  drawNameTagFooter(ctx, W, H, qrImg);
+}
+function drawNameTagClassic(ctx, W, H, data, img, qrImg) {
   ctx.fillStyle = data.accentColor || "#22241F";
   ctx.fillRect(0, 0, W, H);
   const cx = W / 2, photoR = 150, photoCy = H * 0.32;
@@ -1378,6 +1432,50 @@ function drawProfileTagDesign(ctx, W, H, data, img, qrImg) {
     ctx.fillText(line, cx, y);
     y += 30;
   });
+  drawNameTagFooter(ctx, W, H, qrImg);
+}
+function drawNameTagCard(ctx, W, H, data, img, qrImg) {
+  ctx.fillStyle = "#22241F";
+  ctx.fillRect(0, 0, W, H);
+  const ph = H * 0.55;
+  if (img) {
+    const scale = Math.max(W / img.width, ph / img.height);
+    const sw = img.width * scale, sh = img.height * scale;
+    ctx.drawImage(img, (W - sw) / 2, (ph - sh) / 2, sw, sh);
+  } else {
+    ctx.fillStyle = data.accentColor || "#22241F";
+    ctx.fillRect(0, 0, W, ph);
+  }
+  const grad = ctx.createLinearGradient(0, ph - 200, 0, ph);
+  grad.addColorStop(0, "rgba(34,36,31,0)");
+  grad.addColorStop(1, "rgba(34,36,31,1)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, ph - 200, W, 200);
+  ctx.textAlign = "left";
+  ctx.font = "800 52px sans-serif";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(data.name || "", 40, ph - 60);
+  ctx.font = "600 24px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillText(`@${data.username || ""}`, 40, ph - 24);
+  let y = ph + 60;
+  ctx.font = "600 24px sans-serif";
+  (data.statsLines || []).slice(0, 3).forEach((line) => {
+    ctx.fillStyle = "#FBFAF6";
+    ctx.fillText(line, 40, y);
+    y += 40;
+  });
+  if (qrImg) {
+    const qs = 120, margin = 34;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(W - qs - margin - 10, H - qs - margin - 10, qs + 20, qs + 20);
+    ctx.drawImage(qrImg, W - qs - margin, H - qs - margin, qs, qs);
+  }
+  ctx.font = "700 16px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.fillText("CHALKLINE", 40, H - 34);
+}
+function drawNameTagFooter(ctx, W, H, qrImg) {
   if (qrImg) {
     const qs = 130, margin = 34;
     ctx.fillStyle = "#FFFFFF";
@@ -1392,8 +1490,8 @@ function drawProfileTagDesign(ctx, W, H, data, img, qrImg) {
 function ShareCardModal({ data, onClose }) {
   const canvasRef = useRef();
   const [imgUrl, setImgUrl] = useState(null);
-  const [design, setDesign] = useState("badge");
   const isProfile = data.variant === "profile";
+  const [design, setDesign] = useState(isProfile ? "blurred" : "badge");
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -1416,7 +1514,9 @@ function ShareCardModal({ data, onClose }) {
         im.src = url;
       })).catch(() => null);
       Promise.all([loadPhoto, loadQr]).then(([photoImg, qrImg]) => {
-        drawProfileTagDesign(ctx, W, H, data, photoImg, qrImg);
+        if (design === "classic") drawNameTagClassic(ctx, W, H, data, photoImg, qrImg);
+        else if (design === "card") drawNameTagCard(ctx, W, H, data, photoImg, qrImg);
+        else drawNameTagBlurred(ctx, W, H, data, photoImg, qrImg);
         finish();
       });
       return;
@@ -1469,7 +1569,7 @@ function ShareCardModal({ data, onClose }) {
     } catch {
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, !isProfile && /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, SHARE_DESIGNS.map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, (isProfile ? NAME_TAG_DESIGNS : SHARE_DESIGNS).map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
 }
 function GuestProfileView({ username, onGoToLogin }) {
   const [profile, setProfile] = useState(null);
@@ -1956,6 +2056,18 @@ function ChalklineApp() {
   const [threads, setThreads] = useState([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  useEffect(() => {
+    if (!me || !hasLoadedOnce || !guestUsername) return;
+    const match = Object.values(profiles).find((p) => p.username === guestUsername);
+    if (match) {
+      if (match.slug !== me) setViewingProfile(match.slug);
+      setGuestUsername(null);
+      try {
+        window.history.replaceState({}, "", window.location.pathname);
+      } catch {
+      }
+    }
+  }, [me, hasLoadedOnce, guestUsername, profiles]);
   useEffect(() => {
     (async () => {
       try {
@@ -2686,7 +2798,8 @@ function ChalklineApp() {
         .cl-record-summary { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 0; background: var(--bg); }
         .cl-log-detail-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
         .cl-log-detail-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
-        .cl-log-detail-photo { width: 100%; max-height: 260px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; cursor: zoom-in; display: block; }
+        .cl-log-detail-photo-wrap { position: relative; margin-bottom: 8px; border-radius: 8px; overflow: hidden; background: #00000010; }
+        .cl-log-detail-photo { width: 100%; max-height: 480px; object-fit: contain; display: block; }
         .cl-log-detail-row-top { display: flex; align-items: center; justify-content: space-between; }
         .cl-log-detail-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
         .cl-record-summary div { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 1px; }

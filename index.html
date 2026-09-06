@@ -123,8 +123,23 @@
       const row = { [cfg.idCol]: id, data: parsed, updated_at: new Date().toISOString() };
       if (prefix === "log") { row.author_slug = parsed.authorSlug; row.privacy = parsed.privacy || "public"; }
       if (prefix === "session") { row.creator_slug = parsed.creatorSlug; }
-      const { error } = await supabase.from(cfg.table).upsert(row);
-      if (error) throw error;
+
+      // Try UPDATE first. Using upsert() here would also evaluate the INSERT
+      // policy (even for existing rows), which is stricter than UPDATE for
+      // tables like sessions (anyone can update, only the host can insert) —
+      // that mismatch silently broke joining/leaving sessions. Doing an
+      // explicit UPDATE first, and only INSERTing when no row exists yet,
+      // avoids ever needing the INSERT check to pass for a real update.
+      const { data: updatedRows, error: updateError } = await supabase
+        .from(cfg.table)
+        .update(row)
+        .eq(cfg.idCol, id)
+        .select();
+      if (updateError) throw updateError;
+      if (!updatedRows || updatedRows.length === 0) {
+        const { error: insertError } = await supabase.from(cfg.table).insert(row);
+        if (insertError) throw insertError;
+      }
       return { key, value, shared: true };
     },
 
