@@ -242,21 +242,38 @@ function effectiveGrade(kind, profileGrade, myLogs, publicOnly) {
   if (!hardest) return profileGrade;
   return gradeRank(rankType, hardest) > gradeRank(rankType, profileGrade) ? hardest : profileGrade;
 }
+function wallsFromEntry(entry, updateFilter) {
+  const ups = (entry.updates || []).filter((u) => !updateFilter || updateFilter(u));
+  if (ups.length === 0) return [];
+  if (entry.postType === "project") {
+    let best = null, bestScore = -Infinity, anySent = false;
+    ups.forEach((u) => (u.climbs || []).forEach((c) => {
+      if (!c.type) return;
+      if (c.status === "sent") anySent = true;
+      const sc = (c.status === "sent" ? 1e3 : 0) + gradeRank(c.type, c.grade);
+      if (sc > bestScore) { bestScore = sc; best = c; }
+    }));
+    return best ? [{ type: best.type, grade: best.grade, sent: anySent }] : [];
+  }
+  const out = [];
+  ups.forEach((u) => (u.climbs || []).forEach((c) => { if (c.type) out.push({ type: c.type, grade: c.grade, sent: c.status === "sent" }); }));
+  return out;
+}
 function computeStats(mine) {
   let totalClimbs = 0, totalSent = 0, totalMinutes = 0;
   const counts = { boulder: 0, toprope: 0, lead: 0, other: 0 };
   const minutesByType = { boulder: 0, toprope: 0, lead: 0, other: 0 };
   mine.forEach((l) => {
-    if (l.kind === "deal") return;
+    if (l.kind !== "climb") return;
     (l.updates || []).forEach((u) => {
       totalMinutes += Number(u.minutes) || 0;
       const perClimbMinutes = (u.climbs || []).length ? (Number(u.minutes) || 0) / u.climbs.length : 0;
-      (u.climbs || []).forEach((c) => {
-        totalClimbs++;
-        if (c.status === "sent") totalSent++;
-        counts[c.type] = (counts[c.type] || 0) + 1;
-        minutesByType[c.type] = (minutesByType[c.type] || 0) + perClimbMinutes;
-      });
+      (u.climbs || []).forEach((c) => { minutesByType[c.type] = (minutesByType[c.type] || 0) + perClimbMinutes; });
+    });
+    wallsFromEntry(l).forEach((w) => {
+      totalClimbs++;
+      if (w.sent) totalSent++;
+      counts[w.type] = (counts[w.type] || 0) + 1;
     });
   });
   return {
@@ -986,12 +1003,11 @@ function RecordRow({ entry, onOpen }) {
   const updates = entry.updates || [];
   const best = bestUpdate(updates);
   const totals = computeEntryTotals(updates);
-  const overallStatus = (best.climbs || []).some((c) => c.status === "sent") ? "sent" : "trying";
+  const overallStatus = updates.some((u) => (u.climbs || []).some((c) => c.status === "sent")) ? "sent" : "trying";
   const primaryClimb = (best.climbs || [])[0];
   const Icon = primaryClimb ? TYPE_ICONS[primaryClimb.type] : Mountain;
   const iconColor = primaryClimb ? gradeColor(primaryClimb.type, primaryClimb.grade) : "#8A8578";
-  const displayPhoto = entry.photo || null;
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-record" }, /* @__PURE__ */ React.createElement("button", { className: "cl-record-row", onClick: () => onOpen(entry) }, displayPhoto ? /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon cl-record-icon-photo" }, /* @__PURE__ */ React.createElement("img", { src: displayPhoto, alt: "" })) : /* @__PURE__ */ React.createElement("span", { className: "cl-record-icon", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 16, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-record-info" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-record-sub" }, entry.gym), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row", style: { marginTop: 3 } }, (best.climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-cols" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, totals.totalMinutes > 0 ? formatDuration(totals.totalMinutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "time")), /* @__PURE__ */ React.createElement("div", { className: "cl-record-col" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-val" }, totals.totalTries), /* @__PURE__ */ React.createElement("span", { className: "cl-record-col-label" }, "tries"))), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus]), /* @__PURE__ */ React.createElement(ChevronRight, { size: 16, style: { flexShrink: 0, color: "var(--ink-soft)" } })));
+  return /* @__PURE__ */ React.createElement("button", { className: "cl-lrow", onClick: () => onOpen(entry) }, entry.photo ? /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-lrow-media" }) : /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-media cl-lrow-media-empty", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 26, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus])), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-mid" }, (best.climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), entry.gym && /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), entry.gym)), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-stats" }, /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement(Clock, { size: 13 }), totals.totalMinutes > 0 ? formatDuration(totals.totalMinutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement(Repeat, { size: 13 }), totals.totalTries, totals.totalTries === 1 ? " try" : " tries"))));
 }
 function RecordGridItem({ entry, onOpen }) {
   const updates = entry.updates || [];
@@ -1008,46 +1024,45 @@ function computeDaySummary(allLogs, me, targetDate) {
   const targetStr = target.toDateString();
   const isToday = targetStr === (/* @__PURE__ */ new Date()).toDateString();
   const mine = allLogs.filter((l) => l.authorSlug === me && l.kind === "climb");
+  const onDay = (u) => new Date(u.timestamp).toDateString() === targetStr;
   let best = null, bestScore = -1;
-  let totalMinutes = 0, totalClimbs = 0;
+  let totalMinutes = 0, totalClimbs = 0, totalSent = 0;
   const byType = {}, byGrade = {};
   const entries = [];
   mine.forEach((l) => {
-    let touched = false, sentThatDay = false;
-    (l.updates || []).forEach((u) => {
-      if (new Date(u.timestamp).toDateString() !== targetStr) return;
-      touched = true;
-      totalMinutes += Number(u.minutes) || 0;
-      (u.climbs || []).forEach((c) => {
-        if (!c.type) return;
-        totalClimbs++;
-        if (c.status === "sent") sentThatDay = true;
-        byType[c.type] = (byType[c.type] || 0) + 1;
-        const gradeText = c.type === "boulder" ? c.grade : usGrade(c.grade);
-        const gKey = `${c.type}|${c.grade}`;
-        if (!byGrade[gKey]) byGrade[gKey] = { type: c.type, grade: c.grade, label: `${TYPE_LABELS[c.type]} ${gradeText}`, count: 0 };
-        byGrade[gKey].count++;
-        const score = (c.status === "sent" ? 1e3 : 0) + gradeRank(c.type, c.grade);
-        if (score > bestScore) {
-          bestScore = score;
-          best = { entry: l, type: c.type, grade: c.grade, gradeText, sent: c.status === "sent" };
-        }
-      });
+    const dayUpdates = (l.updates || []).filter(onDay);
+    if (dayUpdates.length === 0) return;
+    dayUpdates.forEach((u) => { totalMinutes += Number(u.minutes) || 0; });
+    const ws = wallsFromEntry(l, onDay);
+    let sentThatDay = false;
+    ws.forEach((c) => {
+      totalClimbs++;
+      if (c.sent) { totalSent++; sentThatDay = true; }
+      byType[c.type] = (byType[c.type] || 0) + 1;
+      const gradeText = c.type === "boulder" ? c.grade : usGrade(c.grade);
+      const gKey = `${c.type}|${c.grade}`;
+      if (!byGrade[gKey]) byGrade[gKey] = { type: c.type, grade: c.grade, label: `${TYPE_LABELS[c.type]} ${gradeText}`, count: 0 };
+      byGrade[gKey].count++;
+      const score = (c.sent ? 1e3 : 0) + gradeRank(c.type, c.grade);
+      if (score > bestScore) {
+        bestScore = score;
+        best = { entry: l, type: c.type, grade: c.grade, gradeText, sent: c.sent };
+      }
     });
-    if (touched) entries.push({ entry: l, sentThatDay });
+    entries.push({ entry: l, sentThatDay, walls: ws.length });
   });
   const typeBreakdown = TYPES.filter((t) => byType[t] > 0).map((t) => ({ type: t, label: TYPE_LABELS[t], count: byType[t] }));
   const gradeBreakdown = Object.values(byGrade).sort((a, b) => b.count - a.count || gradeRank(b.type, b.grade) - gradeRank(a.type, a.grade));
   const bestClimbLabel = best ? `${best.entry.title ? best.entry.title + " \u2014 " : ""}${TYPE_LABELS[best.type]} ${best.gradeText}${best.sent ? " \u2014 Sent" : ""}` : "";
   const dateLabel = target.toLocaleDateString(void 0, isToday ? { weekday: "long", month: "short", day: "numeric" } : { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-  return { target, targetStr, isToday, best, bestClimbLabel, totalClimbs, totalMinutes, typeBreakdown, gradeBreakdown, entries, dateLabel };
+  return { target, targetStr, isToday, best, bestClimbLabel, totalClimbs, totalSent, totalMinutes, typeBreakdown, gradeBreakdown, entries, dateLabel };
 }
 function DayConclusionModal({ targetDate, logs, me, onClose, onShareDay, onOpenLogDetail }) {
   const d = computeDaySummary(logs, me, targetDate);
   const best = d.best;
   const bestIcon = best ? TYPE_ICONS[best.type] : Mountain;
   const bestColor = best ? gradeColor(best.type, best.grade) : "#8A8578";
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-day" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose, "aria-label": "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, d.dateLabel), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn cl-icon-btn-boxed", onClick: () => onShareDay(d.target.getTime()), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 18 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, d.entries.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing was logged on this day.") : /* @__PURE__ */ React.createElement(React.Fragment, null, best && /* @__PURE__ */ React.createElement("button", { className: "cl-day-best", onClick: () => onOpenLogDetail(best.entry) }, best.entry.photo ? /* @__PURE__ */ React.createElement("img", { src: best.entry.photo, alt: "", className: "cl-day-best-photo" }) : /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-photo cl-day-best-photo-empty", style: { background: bestColor } }, React.createElement(bestIcon, { size: 30, color: "#fff" })), /* @__PURE__ */ React.createElement("span", { className: "cl-day-best-badge" }, "Best climb"), /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-info" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-name" }, best.entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row", style: { marginTop: 4 } }, /* @__PURE__ */ React.createElement(GradeChip, { type: best.type, grade: best.grade }), /* @__PURE__ */ React.createElement("span", { className: best.sent ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, best.sent ? "Sent" : "Trying")), best.entry.gym && /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", best.entry.gym))), /* @__PURE__ */ React.createElement("div", { className: "cl-day-stats" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-stat" }, /* @__PURE__ */ React.createElement("b", null, d.totalClimbs), /* @__PURE__ */ React.createElement("span", null, d.totalClimbs === 1 ? "climb" : "climbs")), /* @__PURE__ */ React.createElement("div", { className: "cl-day-stat" }, /* @__PURE__ */ React.createElement("b", null, formatDuration(d.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time")), /* @__PURE__ */ React.createElement("div", { className: "cl-day-stat" }, /* @__PURE__ */ React.createElement("b", null, d.entries.filter((x) => x.sentThatDay).length), /* @__PURE__ */ React.createElement("span", null, "sent"))), d.gradeBreakdown.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 18 } }, "By grade"), d.gradeBreakdown.map((g) => /* @__PURE__ */ React.createElement("div", { key: g.type + g.grade, className: "cl-day-grade-row" }, /* @__PURE__ */ React.createElement(GradeChip, { type: g.type, grade: g.grade }), /* @__PURE__ */ React.createElement("span", { className: "cl-day-grade-type" }, TYPE_LABELS[g.type]), /* @__PURE__ */ React.createElement("span", { className: "cl-day-grade-count" }, "\xD7", g.count))), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 18 } }, "Logs from this day"), d.entries.map(({ entry }) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail })))));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-day" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose, "aria-label": "Back" }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, d.dateLabel), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn cl-icon-btn-boxed", onClick: () => onShareDay(d.target.getTime()), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 18 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, d.entries.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing was logged on this day.") : /* @__PURE__ */ React.createElement(React.Fragment, null, best && /* @__PURE__ */ React.createElement("button", { className: "cl-day-best", onClick: () => onOpenLogDetail(best.entry) }, best.entry.photo ? /* @__PURE__ */ React.createElement("img", { src: best.entry.photo, alt: "", className: "cl-day-best-photo" }) : /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-photo cl-day-best-photo-empty", style: { background: bestColor } }, React.createElement(bestIcon, { size: 30, color: "#fff" })), /* @__PURE__ */ React.createElement("span", { className: "cl-day-best-badge" }, "Best climb"), /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-info" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-name" }, best.entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row", style: { marginTop: 4 } }, /* @__PURE__ */ React.createElement(GradeChip, { type: best.type, grade: best.grade }), /* @__PURE__ */ React.createElement("span", { className: best.sent ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, best.sent ? "Sent" : "Trying")), best.entry.gym && /* @__PURE__ */ React.createElement("div", { className: "cl-day-best-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", best.entry.gym))), /* @__PURE__ */ React.createElement("div", { className: "cl-day-stats" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-stat" }, /* @__PURE__ */ React.createElement("b", null, d.totalClimbs), /* @__PURE__ */ React.createElement("span", null, d.totalClimbs === 1 ? "climb" : "climbs")), /* @__PURE__ */ React.createElement("div", { className: "cl-day-stat" }, /* @__PURE__ */ React.createElement("b", null, formatDuration(d.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time")), /* @__PURE__ */ React.createElement("div", { className: "cl-day-stat" }, /* @__PURE__ */ React.createElement("b", null, d.totalSent), /* @__PURE__ */ React.createElement("span", null, "sent"))), d.gradeBreakdown.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 18 } }, "By grade"), d.gradeBreakdown.map((g) => /* @__PURE__ */ React.createElement("div", { key: g.type + g.grade, className: "cl-day-grade-row" }, /* @__PURE__ */ React.createElement(GradeChip, { type: g.type, grade: g.grade }), /* @__PURE__ */ React.createElement("span", { className: "cl-day-grade-type" }, TYPE_LABELS[g.type]), /* @__PURE__ */ React.createElement("span", { className: "cl-day-grade-count" }, "\xD7", g.count))), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 18 } }, "Logs from this day"), d.entries.map(({ entry }) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail })))));
 }
 function BottomSheet({ title, message, confirmLabel = "Confirm", danger = false, onConfirm, onCancel }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: onCancel }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, title), message && /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-message" }, message), /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-sheet-btn", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: danger ? "cl-sheet-btn danger" : "cl-sheet-btn primary", onClick: onConfirm }, confirmLabel))));
@@ -1122,7 +1137,7 @@ function ProgressCharts({ mine }) {
   const [chartType, setChartType] = useState("boulder");
   const gradeData = gradeDistributionData(mine, chartType).filter((d, i) => i < 10 || d.count > 0);
   const monthData = monthlyProgressData(mine, chartType);
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-charts" }, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginBottom: 10 } }, [["boulder", "Boulder"], ["toprope", "Top rope"], ["lead", "Lead"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: chartType === val ? "cl-toggle active" : "cl-toggle", onClick: () => setChartType(val) }, lbl))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, TYPE_LABELS[chartType], " grades logged"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 140 }, /* @__PURE__ */ React.createElement(BarChart, { data: gradeData, margin: { top: 4, right: 4, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "grade", tick: { fontSize: 9, fill: "var(--ink-soft)" }, interval: 0 }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9, fill: "var(--ink-soft)" }, width: 24 }), /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-charts" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, [["boulder", "Boulder"], ["toprope", "Top rope"], ["lead", "Lead"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: chartType === val ? "cl-tbtab active" : "cl-tbtab", onClick: () => setChartType(val), role: "tab" }, lbl)))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, TYPE_LABELS[chartType], " grades logged"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 140 }, /* @__PURE__ */ React.createElement(BarChart, { data: gradeData, margin: { top: 4, right: 4, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "grade", tick: { fontSize: 9, fill: "var(--ink-soft)" }, interval: 0 }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9, fill: "var(--ink-soft)" }, width: 24 }), /* @__PURE__ */ React.createElement(
     Tooltip,
     {
       contentStyle: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12 },
@@ -1159,7 +1174,7 @@ function ProfileView({ slug, me, profiles, logs, commentsMap, onClose, onToggleF
   })), target.gear && target.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, target.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-stats-row" }, /* @__PURE__ */ React.createElement("div", { className: "cl-stat" }, /* @__PURE__ */ React.createElement("b", null, publicLogs.length), /* @__PURE__ */ React.createElement("span", null, "posts")), /* @__PURE__ */ React.createElement("button", { className: "cl-stat cl-stat-btn", onClick: () => setShowFollowers((v) => !v) }, /* @__PURE__ */ React.createElement("b", null, followerSlugs.length), /* @__PURE__ */ React.createElement("span", null, "followers")), /* @__PURE__ */ React.createElement("div", { className: "cl-stat" }, /* @__PURE__ */ React.createElement("b", null, (target.following || []).length), /* @__PURE__ */ React.createElement("span", null, "following"))), showFollowers && (friend ? /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, followerSlugs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No followers yet."), followerSlugs.map((s) => {
     const p = profiles[s];
     return p ? /* @__PURE__ */ React.createElement("div", { className: "cl-crew-card", key: s }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 30 }), /* @__PURE__ */ React.createElement("div", { className: "cl-crew-name" }, p.name)) : null;
-  })) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 8 } }, "Follow each other to see ", target.name, "'s followers.")), !blocked ? /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onToggleFollow(slug) }, following ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserMinus, { size: 14, style: { marginRight: 4 } }), " Unfollow") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserPlus, { size: 14, style: { marginRight: 4 } }), " Follow")), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: () => onMessage(slug) }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 14, style: { marginRight: 4 } }), " Message")) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 10 } }, "You or ", target.name, " have blocked each other."), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8, color: "var(--accent2)" }, onClick: () => onToggleBlock(slug) }, /* @__PURE__ */ React.createElement(Ban, { size: 14, style: { marginRight: 4 } }), " ", blocked ? "Unblock" : "Block")), !blocked && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginTop: 16 } }, /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-toggle active" : "cl-toggle", onClick: () => setView("posts") }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "log" ? "cl-toggle active" : "cl-toggle", onClick: () => setView("log") }, "Log")), view === "posts" && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 12, display: "flex", flexDirection: "column", gap: 12 } }, publicLogs.filter((l) => l.kind === "post").length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No public posts yet."), publicLogs.filter((l) => l.kind === "post").map((entry) => /* @__PURE__ */ React.createElement(
+  })) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 8 } }, "Follow each other to see ", target.name, "'s followers.")), !blocked ? /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onToggleFollow(slug) }, following ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserMinus, { size: 14, style: { marginRight: 4 } }), " Unfollow") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement(UserPlus, { size: 14, style: { marginRight: 4 } }), " Follow")), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: () => onMessage(slug) }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 14, style: { marginRight: 4 } }), " Message")) : /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 10 } }, "You or ", target.name, " have blocked each other."), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8, color: "var(--accent2)" }, onClick: () => onToggleBlock(slug) }, /* @__PURE__ */ React.createElement(Ban, { size: 14, style: { marginRight: 4 } }), " ", blocked ? "Unblock" : "Block")), !blocked && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar", style: { marginTop: 16 } }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("posts"), role: "tab" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "log" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("log"), role: "tab" }, "Log"))), view === "posts" && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 12, display: "flex", flexDirection: "column", gap: 12 } }, publicLogs.filter((l) => l.kind === "post").length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "No public posts yet."), publicLogs.filter((l) => l.kind === "post").map((entry) => /* @__PURE__ */ React.createElement(
     SocialPostCard,
     {
       key: entry.id,
@@ -2010,7 +2025,7 @@ function SocialPostForm({ myLogs, onCancel, onSave, initialAttachedLogId }) {
 }
 function SocialPostOverlay({ myLogs, onClose, onSavePost, onSaveDeal, initialAttachedLogId }) {
   const [kind, setKind] = useState("post");
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "New post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, !initialAttachedLogId && /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement("button", { className: kind === "post" ? "cl-toggle active" : "cl-toggle", onClick: () => setKind("post") }, /* @__PURE__ */ React.createElement(Mountain, { size: 14 }), " Community post"), /* @__PURE__ */ React.createElement("button", { className: kind === "deal" ? "cl-toggle active" : "cl-toggle", onClick: () => setKind("deal") }, /* @__PURE__ */ React.createElement(TagIcon, { size: 14 }), " Gear deal")), kind === "post" ? /* @__PURE__ */ React.createElement(SocialPostForm, { myLogs, onCancel: onClose, onSave: async (data) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "New post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, !initialAttachedLogId && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: kind === "post" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setKind("post"), role: "tab" }, /* @__PURE__ */ React.createElement(Mountain, { size: 14 }), " Community post"), /* @__PURE__ */ React.createElement("button", { className: kind === "deal" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setKind("deal"), role: "tab" }, /* @__PURE__ */ React.createElement(TagIcon, { size: 14 }), " Gear deal"))), kind === "post" ? /* @__PURE__ */ React.createElement(SocialPostForm, { myLogs, onCancel: onClose, onSave: async (data) => {
     await onSavePost(data);
     onClose();
   }, initialAttachedLogId }) : /* @__PURE__ */ React.createElement(DealForm, { onCancel: onClose, onSave: async (data) => {
@@ -2180,7 +2195,13 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
   const [showBadges, setShowBadges] = useState(false);
   const [showCharts, setShowCharts] = useState(false);
   const [expandedRecord, setExpandedRecord] = useState(null);
-  const [logViewMode, setLogViewMode] = useState("list");
+  const [logViewMode, setLogViewModeState] = useState(() => {
+    try { return localStorage.getItem("chalkline_logViewMode") === "grid" ? "grid" : "list"; } catch { return "list"; }
+  });
+  const setLogViewMode = (mode) => {
+    setLogViewModeState(mode);
+    try { localStorage.setItem("chalkline_logViewMode", mode); } catch {}
+  };
   if (!profile) return null;
   const mine = logs.filter((l) => l.authorSlug === me);
   const climbLogs = mine.filter((l) => l.kind === "climb");
@@ -2220,7 +2241,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
     else val = `${count} \xB7 ${formatDuration(mins) || "0min"}`;
     const Icon = TYPE_ICONS[t];
     return /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat", key: t }, /* @__PURE__ */ React.createElement(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", val);
-  })), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowBadges((v) => !v) }, /* @__PURE__ */ React.createElement(Award, { size: 14 }), " ", earnedCount, "/", badges.length, " badges"), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowCharts((v) => !v) }, /* @__PURE__ */ React.createElement(TrendingUp, { size: 14 }), " Progress")), showBadges && /* @__PURE__ */ React.createElement(BadgesGrid, { stats, onShareBadge }), showCharts && /* @__PURE__ */ React.createElement(ProgressCharts, { mine: climbLogs })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tab active" : "cl-tab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tab active" : "cl-tab", onClick: () => setView("posts"), role: "tab", "aria-selected": view === "posts" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "saved" ? "cl-tab active" : "cl-tab", onClick: () => setView("saved"), role: "tab", "aria-selected": view === "saved" }, "Saved")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: "cl-tabbar-icon", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list"), "aria-label": logViewMode === "list" ? "Show as grid" : "Show as list" }, logViewMode === "list" ? /* @__PURE__ */ React.createElement(LayoutGrid, { size: 18 }) : /* @__PURE__ */ React.createElement(ListIcon, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showFilters ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowFilters((v) => !v), "aria-label": "Filter" }, /* @__PURE__ */ React.createElement(Filter, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareDay(group.ts), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
+  })), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowBadges((v) => !v) }, /* @__PURE__ */ React.createElement(Award, { size: 14 }), " ", earnedCount, "/", badges.length, " badges"), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowCharts((v) => !v) }, /* @__PURE__ */ React.createElement(TrendingUp, { size: 14 }), " Progress")), showBadges && /* @__PURE__ */ React.createElement(BadgesGrid, { stats, onShareBadge }), showCharts && /* @__PURE__ */ React.createElement(ProgressCharts, { mine: climbLogs })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("posts"), role: "tab", "aria-selected": view === "posts" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "saved" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("saved"), role: "tab", "aria-selected": view === "saved" }, "Saved")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: "cl-tabbar-icon", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list"), "aria-label": logViewMode === "list" ? "Show as grid" : "Show as list" }, logViewMode === "list" ? /* @__PURE__ */ React.createElement(LayoutGrid, { size: 18 }) : /* @__PURE__ */ React.createElement(ListIcon, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showFilters ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowFilters((v) => !v), "aria-label": "Filter" }, /* @__PURE__ */ React.createElement(Filter, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareDay(group.ts), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
       key: entry.id,
@@ -2252,7 +2273,7 @@ function FeedTab({ me, profile, logs, profiles, commentsMap, addComment, toggleK
   if (feedTab === "following") scoped = visible.filter((l) => (profile.following || []).includes(l.authorSlug));
   if (feedTab === "deals") scoped = visible.filter((l) => l.kind === "deal");
   const filtered = scoped.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab", style: { position: "relative", minHeight: "60vh" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-feed-tabs" }, /* @__PURE__ */ React.createElement("button", { className: feedTab === "following" ? "cl-feed-tab active" : "cl-feed-tab", onClick: () => setFeedTab("following") }, "Following"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "suggested" ? "cl-feed-tab active" : "cl-feed-tab", onClick: () => setFeedTab("suggested") }, "Suggested"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "deals" ? "cl-feed-tab active" : "cl-feed-tab", onClick: () => setFeedTab("deals") }, /* @__PURE__ */ React.createElement(TagIcon, { size: 12 }), " Good deals")), filtered.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing here yet."), filtered.map((entry) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab", style: { position: "relative", minHeight: "60vh" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: feedTab === "following" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("following") }, "Following"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "suggested" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("suggested") }, "Suggested"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "deals" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("deals") }, /* @__PURE__ */ React.createElement(TagIcon, { size: 13 }), " Good deals"))), filtered.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing here yet."), filtered.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
       key: entry.id,
@@ -2874,7 +2895,8 @@ function ChalklineApp() {
           --line: #D9D4C4;
           --accent: #6B8E4E;
           --accent2: #C4501F;
-          --radius: 10px;
+          --radius: 14px;
+          --card: #FFFFFF;
           font-family: 'Work Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
           background: var(--bg);
           color: var(--ink);
@@ -2883,6 +2905,7 @@ function ChalklineApp() {
           position: relative;
         }
         .cl-app.cl-dark {
+          --card: #24261F;
           --bg: #1A1B17;
           --surface: #24261F;
           --ink: #EDEAE1;
@@ -2934,7 +2957,7 @@ function ChalklineApp() {
           flex-shrink: 0; padding: 0 !important;
         }
 
-        .cl-main { max-width: 620px; margin: 0 auto; padding: 16px 14px 90px; }
+        .cl-main { max-width: 680px; margin: 0 auto; padding: 12px 10px 100px; }
         .cl-tab { display: flex; flex-direction: column; gap: 14px; }
 
         .cl-onboard { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -3036,13 +3059,13 @@ function ChalklineApp() {
         .cl-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
         .cl-card.cl-invited { border-color: var(--accent2); box-shadow: 0 0 0 1px var(--accent2); }
         .cl-invite-note { font-size: 12px; font-weight: 700; color: var(--accent2); margin: 0 0 6px; }
-        .cl-form-card { padding: 16px; }
+        .cl-form-card { padding: 18px; }
         .cl-form-section { padding: 12px 0; border-bottom: 1px solid var(--line); }
         .cl-form-section:first-child { padding-top: 0; }
         .cl-form-section:last-of-type { border-bottom: none; padding-bottom: 4px; }
         .cl-section-caption { font-size: 12px; font-weight: 700; color: var(--ink); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.03em; }
         .cl-form-section .cl-label:first-of-type { margin-top: 0; }
-        .cl-card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; }
+        .cl-card-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
         .cl-card-title { font-weight: 700; font-size: 14px; }
         .cl-status { font-size: 10px; padding: 3px 9px; border-radius: 20px; background: var(--bg); color: var(--ink-soft); align-self: flex-start; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
         .cl-status-sent { background: #E4EDD9; color: #4C6A34; }
@@ -3053,7 +3076,7 @@ function ChalklineApp() {
         .cl-enlarge-hint { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.55); color: white; border-radius: 6px; padding: 4px 6px; display: flex; }
         .cl-photo-preview { width: 100%; border-radius: 8px; margin-top: 8px; max-height: 260px; object-fit: cover; }
         .cl-photo-preview-round { max-width: 96px; max-height: 96px; border-radius: 50%; }
-        .cl-card-body { padding: 10px 14px 4px; }
+        .cl-card-body { padding: 12px 16px 8px; }
         .cl-note { font-size: 13px; margin: 8px 0 0; line-height: 1.4; }
         .cl-deal-price { font-size: 15px; font-weight: 700; color: var(--accent2); margin: 6px 0 0; }
         .cl-deal-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink); margin-top: 8px; text-decoration: underline; }
@@ -3235,15 +3258,15 @@ function ChalklineApp() {
         .cl-record-detail { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
         .cl-record-detail-head { display: flex; align-items: center; gap: 6px; }
         .cl-record-detail-gym { flex: 1; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
-        .cl-day-group { display: flex; flex-direction: column; gap: 8px; }
+        .cl-day-group { display: flex; flex-direction: column; gap: 10px; }
         .cl-day-header { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 0; }
         .cl-day-header-row { display: flex; align-items: center; justify-content: space-between; }
         .cl-day-header-row .cl-day-header { margin: 4px 0; }
         .cl-tabbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); margin: 6px 0 8px; }
         .cl-tabs { display: flex; gap: 2px; }
-        .cl-tab { position: relative; background: none; border: none; padding: 10px 10px 11px; min-height: 42px; font-size: 14px; font-weight: 600; color: var(--ink-soft); cursor: pointer; font-family: inherit; }
-        .cl-tab.active { color: var(--ink); font-weight: 700; }
-        .cl-tab.active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2.5px; border-radius: 2px; background: var(--accent2); }
+        .cl-tbtab { position: relative; display: inline-flex; align-items: center; gap: 5px; background: none; border: none; padding: 10px 10px 11px; min-height: 42px; font-size: 14px; font-weight: 600; color: var(--ink-soft); cursor: pointer; font-family: inherit; }
+        .cl-tbtab.active { color: var(--ink); font-weight: 700; }
+        .cl-tbtab.active::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2.5px; border-radius: 2px; background: var(--accent2); }
         .cl-tabbar-tools { display: flex; align-items: center; }
         .cl-tabbar-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: none; border: none; border-radius: 10px; color: var(--ink-soft); cursor: pointer; }
         .cl-tabbar-icon.active { background: var(--ink); color: var(--surface); }
@@ -3253,6 +3276,26 @@ function ChalklineApp() {
         .cl-header-icon.danger { color: var(--accent2); }
         .cl-log-top-actions { margin: 0 0 12px; }
         .cl-overlay-header .cl-overlay-title { flex: 1; min-width: 0; margin: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+        html, body, .cl-app, .cl-app * { -webkit-tap-highlight-color: transparent; }
+        .cl-app button, .cl-app label, .cl-app img { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        .cl-app button:focus:not(:focus-visible) { outline: none; }
+        .cl-app button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+        .cl-lrow { display: flex; align-items: stretch; gap: 14px; width: 100%; padding: 12px; text-align: left; border: 1px solid var(--line); border-radius: 16px; background: var(--card); cursor: pointer; font-family: inherit; color: var(--ink); }
+        .cl-lrow:active { background: var(--surface); }
+        .cl-lrow-media { width: 88px; height: 88px; border-radius: 12px; object-fit: cover; flex-shrink: 0; display: block; }
+        .cl-lrow-media-empty { display: flex; align-items: center; justify-content: center; }
+        .cl-lrow-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; padding: 2px 0; }
+        .cl-lrow-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+        .cl-lrow-title { font-size: 16px; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .cl-lrow-top .cl-status { flex-shrink: 0; }
+        .cl-lrow-mid { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+        .cl-lrow-gym { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; color: var(--ink-soft); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cl-lrow-stats { display: flex; gap: 16px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+        .cl-lrow-stats span { display: inline-flex; align-items: center; gap: 5px; }
+        .cl-record-grid-item { background: var(--card); border-radius: 16px; }
+        .cl-record-grid-photo { height: 170px; }
+        .cl-record-grid-title { font-size: 14px; }
+        .cl-record-grid-info { padding: 10px 12px 12px; }
         .cl-overlay.cl-layer-day { z-index: 105; }
         .cl-overlay.cl-layer-log { z-index: 110; }
         .cl-overlay.cl-layer-top { z-index: 120; }
@@ -3293,9 +3336,9 @@ function ChalklineApp() {
         .cl-day-grade-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; }
         .cl-day-grade-type { flex: 1; font-size: 13px; color: var(--ink-soft); }
         .cl-day-grade-count { font-size: 14px; font-weight: 700; color: var(--ink); }
-        .cl-record-summary { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 0; background: var(--bg); }
+        .cl-record-summary { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 14px; padding: 14px 0; background: var(--card); }
         .cl-log-detail-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
-        .cl-log-detail-item { border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+        .cl-log-detail-item { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: var(--card); }
         .cl-log-detail-photo-wrap { position: relative; margin-bottom: 8px; border-radius: 8px; overflow: hidden; background: #00000010; }
         .cl-log-detail-photo { width: 100%; max-height: 480px; object-fit: contain; display: block; }
         .cl-log-detail-row-top { display: flex; align-items: center; justify-content: space-between; }
@@ -3350,7 +3393,7 @@ function ChalklineApp() {
         .cl-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 100; display: flex; flex-direction: column; }
         .cl-overlay-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
         .cl-overlay-title { font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 17px; }
-        .cl-overlay-body { flex: 1; overflow-y: auto; padding: 14px; max-width: 620px; margin: 0 auto; width: 100%; }
+        .cl-overlay-body { flex: 1; overflow-y: auto; padding: 12px 10px 28px; max-width: 680px; margin: 0 auto; width: 100%; }
 
         .cl-qr-box { display: flex; justify-content: center; margin: 16px 0; }
         .cl-qr-code { font-family: monospace; font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px; word-break: break-all; }
