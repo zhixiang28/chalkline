@@ -55,7 +55,7 @@ import {
   LayoutGrid,
   List as ListIcon
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Cell, AreaChart, Area, CartesianGrid } from "recharts";
 var BOULDER_GRADES = ["VB", ...Array.from({ length: 13 }, (_, i) => `V${i}`)];
 var BOULDER_COLORS = {
   VB: { hex: "#C2568B", label: "Pink tag" },
@@ -242,6 +242,61 @@ function effectiveGrade(kind, profileGrade, myLogs, publicOnly) {
   if (!hardest) return profileGrade;
   return gradeRank(rankType, hardest) > gradeRank(rankType, profileGrade) ? hardest : profileGrade;
 }
+function gradeDistributionData(mine, type = "boulder") {
+  const gradeList = type === "boulder" ? BOULDER_GRADES : ROUTE_GRADES;
+  const counts = {};
+  gradeList.forEach((g) => counts[g] = 0);
+  mine.forEach((l) => {
+    if (l.kind !== "climb") return;
+    wallsFromEntry(l).forEach((w) => {
+      if (w.type === type && counts[w.grade] !== void 0) counts[w.grade]++;
+    });
+  });
+  const idx = gradeList.map((g, i) => counts[g] > 0 ? i : -1).filter((i) => i >= 0);
+  let lo = 0, hi = Math.min(gradeList.length - 1, 7);
+  if (idx.length) {
+    lo = Math.max(0, idx[0] - 1);
+    hi = Math.min(gradeList.length - 1, idx[idx.length - 1] + 1);
+    while (hi - lo + 1 < 6 && (lo > 0 || hi < gradeList.length - 1)) {
+      if (hi < gradeList.length - 1) hi++;
+      if (hi - lo + 1 < 6 && lo > 0) lo--;
+    }
+  }
+  return gradeList.slice(lo, hi + 1).map((g) => ({ grade: type === "boulder" ? g : usGrade(g), count: counts[g], color: gradeColor(type, g) }));
+}
+function monthlyProgressData(mine, type = null) {
+  const now = /* @__PURE__ */ new Date();
+  const buckets = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    buckets.push({ key: d.toLocaleDateString(void 0, { month: "short" }), year: d.getFullYear(), month: d.getMonth(), count: 0 });
+  }
+  mine.forEach((l) => {
+    if (l.kind !== "climb") return;
+    buckets.forEach((b) => {
+      const inMonth = (u) => {
+        const d = new Date(u.timestamp);
+        return d.getFullYear() === b.year && d.getMonth() === b.month;
+      };
+      b.count += wallsFromEntry(l, inMonth).filter((w) => !type || w.type === type).length;
+    });
+  });
+  return buckets.map((b) => ({ month: b.key, count: b.count }));
+}
+function ProgressCharts({ mine }) {
+  const [chartType, setChartType] = useState("boulder");
+  const walls = mine.filter((l) => l.kind === "climb").flatMap((l) => wallsFromEntry(l)).filter((w) => w.type === chartType);
+  const sent = walls.filter((w) => w.sent);
+  let top = null;
+  sent.forEach((w) => {
+    if (!top || gradeRank(w.type, w.grade) > gradeRank(top.type, top.grade)) top = w;
+  });
+  const gradeData = gradeDistributionData(mine, chartType);
+  const monthData = monthlyProgressData(mine, chartType);
+  const tip = { contentStyle: { background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, fontSize: 12.5 }, labelStyle: { color: "var(--ink)", fontWeight: 700 }, itemStyle: { color: "var(--ink)" }, cursor: { fill: "rgba(0,0,0,0.04)" } };
+  const axis = { tick: { fontSize: 11, fill: "var(--ink-soft)" }, axisLine: false, tickLine: false };
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-chart-card" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar cl-tabbar-even", style: { marginTop: 0 } }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, [["boulder", "Boulder"], ["toprope", "Top rope"], ["lead", "Lead"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: chartType === val ? "cl-tbtab active" : "cl-tbtab", onClick: () => setChartType(val), role: "tab", "aria-selected": chartType === val }, lbl)))), /* @__PURE__ */ React.createElement("div", { className: "cl-chart-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, walls.length), /* @__PURE__ */ React.createElement("span", null, "climbed")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, sent.length), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", { style: top ? { color: gradeColor(top.type, top.grade) } : void 0 }, top ? chartType === "boulder" ? top.grade : usGrade(top.grade) : "\u2014"), /* @__PURE__ */ React.createElement("span", null, "hardest sent"))), walls.length === 0 ? /* @__PURE__ */ React.createElement("p", { className: "cl-empty", style: { padding: "18px 0" } }, "No ", TYPE_LABELS[chartType].toLowerCase(), " climbs logged yet.") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-chart-block" }, /* @__PURE__ */ React.createElement("p", { className: "cl-chart-title" }, "Walls by grade"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 180 }, /* @__PURE__ */ React.createElement(BarChart, { data: gradeData, margin: { top: 8, right: 4, left: -18, bottom: 0 } }, /* @__PURE__ */ React.createElement(CartesianGrid, { vertical: false, stroke: "var(--line)", strokeDasharray: "3 4" }), /* @__PURE__ */ React.createElement(XAxis, { dataKey: "grade", interval: 0, ...axis }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, width: 30, ...axis }), /* @__PURE__ */ React.createElement(Tooltip, { ...tip, formatter: (v) => [v, "walls"] }), /* @__PURE__ */ React.createElement(Bar, { dataKey: "count", radius: [7, 7, 2, 2], maxBarSize: 34 }, gradeData.map((d, i) => /* @__PURE__ */ React.createElement(Cell, { key: i, fill: d.color })))))), /* @__PURE__ */ React.createElement("div", { className: "cl-chart-block" }, /* @__PURE__ */ React.createElement("p", { className: "cl-chart-title" }, "Last 6 months"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 150 }, /* @__PURE__ */ React.createElement(AreaChart, { data: monthData, margin: { top: 8, right: 8, left: -18, bottom: 0 } }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("linearGradient", { id: "clAreaFill", x1: "0", y1: "0", x2: "0", y2: "1" }, /* @__PURE__ */ React.createElement("stop", { offset: "0%", stopColor: "#C4501F", stopOpacity: 0.35 }), /* @__PURE__ */ React.createElement("stop", { offset: "100%", stopColor: "#C4501F", stopOpacity: 0 }))), /* @__PURE__ */ React.createElement(CartesianGrid, { vertical: false, stroke: "var(--line)", strokeDasharray: "3 4" }), /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", ...axis }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, width: 30, ...axis }), /* @__PURE__ */ React.createElement(Tooltip, { ...tip, cursor: { stroke: "var(--line)" }, formatter: (v) => [v, "walls"] }), /* @__PURE__ */ React.createElement(Area, { type: "monotone", dataKey: "count", stroke: "#C4501F", strokeWidth: 2.5, fill: "url(#clAreaFill)", dot: { r: 3.5, fill: "#C4501F", strokeWidth: 0 }, activeDot: { r: 5 } }))))));
+}
 function wallsFromEntry(entry, updateFilter) {
   const ups = (entry.updates || []).filter((u) => !updateFilter || updateFilter(u));
   if (ups.length === 0) return [];
@@ -302,39 +357,6 @@ function computeDisplayBadges(stats) {
   const all = computeBadges(stats);
   const firstPost = all.find((b) => b.id === "first-post");
   return [firstPost, bestInCategory("boulder-", all), bestInCategory("route-", all), bestInCategory("hours-", all), bestInCategory("finish-", all)].filter(Boolean);
-}
-function gradeDistributionData(mine, type = "boulder") {
-  const gradeList = type === "boulder" ? BOULDER_GRADES : ROUTE_GRADES;
-  const counts = {};
-  gradeList.forEach((g) => counts[g] = 0);
-  mine.forEach((l) => {
-    if (l.kind === "deal") return;
-    (l.updates || []).forEach((u) => {
-      (u.climbs || []).forEach((c) => {
-        if (c.type === type && counts[c.grade] !== void 0) counts[c.grade]++;
-      });
-    });
-  });
-  return gradeList.map((g) => ({ grade: type === "boulder" ? g : usGrade(g), count: counts[g] }));
-}
-function monthlyProgressData(mine, type = null) {
-  const now = /* @__PURE__ */ new Date();
-  const buckets = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    buckets.push({ key: d.toLocaleDateString(void 0, { month: "short" }), year: d.getFullYear(), month: d.getMonth(), count: 0 });
-  }
-  mine.forEach((l) => {
-    if (l.kind === "deal") return;
-    (l.updates || []).forEach((u) => {
-      const d = new Date(u.timestamp);
-      const b = buckets.find((b2) => b2.year === d.getFullYear() && b2.month === d.getMonth());
-      if (!b) return;
-      const climbs = type ? (u.climbs || []).filter((c) => c.type === type) : u.climbs || [];
-      b.count += climbs.length;
-    });
-  });
-  return buckets.map((b) => ({ month: b.key, count: b.count }));
 }
 function formatDuration(mins) {
   const m = Number(mins) || 0;
@@ -1077,7 +1099,7 @@ function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePriva
   const pts = normalizePoints(entry.points);
   const hasPoints = pts.start.length > 0 || pts.end.length > 0 || pts.fall.length > 0;
   const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0] }], formId: entry.id, photo: entry.photo, points: entry.points } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-log" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, entry.title), /* @__PURE__ */ React.createElement("div", { className: "cl-header-actions" }, onShare && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShare(entry), "aria-label": "Share as picture", title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 })), onShareToPost && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShareToPost(entry), "aria-label": "Share to a post", title: "Post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 17 })), isMine && onTogglePrivacy && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => setConfirm("privacy"), "aria-label": entry.privacy === "private" ? "Private — make public" : "Public — make private", title: entry.privacy === "private" ? "Private" : "Public" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 17 }) : /* @__PURE__ */ React.createElement(Globe, { size: 17 })), isMine && onDelete && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon danger", onClick: () => setConfirm("delete"), "aria-label": "Delete log", title: "Delete" }, /* @__PURE__ */ React.createElement(Trash2, { size: 17 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("p", { className: "cl-record-detail-gym", style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement(MapPin, { size: 13 }), " ", entry.gym), isMine && onAddTry && !addingTry && /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons cl-log-top-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => setAddingTry(true) }, "Log another entry"), entry.postType === "project" && onLiveLog && /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onLiveLog(entry) }, /* @__PURE__ */ React.createElement(Zap, { size: 13 }), " Live log")), addingTry && /* @__PURE__ */ React.createElement(LogForm, { initial: tryInitial, saveLabel: "Save entry", onCancel: () => setAddingTry(false), onSave: async (data) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-log" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement("div", { className: "cl-header-actions" }, onShare && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShare(entry), "aria-label": "Share as picture", title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 })), onShareToPost && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShareToPost(entry), "aria-label": "Share to a post", title: "Post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 17 })), isMine && onTogglePrivacy && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => setConfirm("privacy"), "aria-label": entry.privacy === "private" ? "Private — make public" : "Public — make private", title: entry.privacy === "private" ? "Private" : "Public" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 17 }) : /* @__PURE__ */ React.createElement(Globe, { size: 17 })), isMine && onDelete && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon danger", onClick: () => setConfirm("delete"), "aria-label": "Delete log", title: "Delete" }, /* @__PURE__ */ React.createElement(Trash2, { size: 17 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-title-block" }, /* @__PURE__ */ React.createElement("h1", { className: "cl-log-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-log-title-meta" }, (bestUpdate(entry.updates).climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), entry.gym && /* @__PURE__ */ React.createElement("span", { className: "cl-record-detail-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 13 }), " ", entry.gym))), isMine && onAddTry && !addingTry && /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons cl-log-top-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => setAddingTry(true) }, "Log another entry"), entry.postType === "project" && onLiveLog && /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onLiveLog(entry) }, /* @__PURE__ */ React.createElement(Zap, { size: 13 }), " Live log")), addingTry && /* @__PURE__ */ React.createElement(LogForm, { initial: tryInitial, saveLabel: "Save entry", onCancel: () => setAddingTry(false), onSave: async (data) => {
     await onAddTry(entry.id, { note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs });
     setAddingTry(false);
   } }), entry.photo && /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
@@ -1132,26 +1154,6 @@ function BadgesGrid({ stats, onShareBadge }) {
       /* @__PURE__ */ React.createElement("span", null, b.label)
     );
   }));
-}
-function ProgressCharts({ mine }) {
-  const [chartType, setChartType] = useState("boulder");
-  const gradeData = gradeDistributionData(mine, chartType).filter((d, i) => i < 10 || d.count > 0);
-  const monthData = monthlyProgressData(mine, chartType);
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-charts" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, [["boulder", "Boulder"], ["toprope", "Top rope"], ["lead", "Lead"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: chartType === val ? "cl-tbtab active" : "cl-tbtab", onClick: () => setChartType(val), role: "tab" }, lbl)))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, TYPE_LABELS[chartType], " grades logged"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 140 }, /* @__PURE__ */ React.createElement(BarChart, { data: gradeData, margin: { top: 4, right: 4, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "grade", tick: { fontSize: 9, fill: "var(--ink-soft)" }, interval: 0 }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9, fill: "var(--ink-soft)" }, width: 24 }), /* @__PURE__ */ React.createElement(
-    Tooltip,
-    {
-      contentStyle: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12 },
-      labelStyle: { color: "var(--ink)" },
-      itemStyle: { color: "var(--ink)" }
-    }
-  ), /* @__PURE__ */ React.createElement(Bar, { dataKey: "count", fill: "#6B8E4E", radius: [3, 3, 0, 0] }))), /* @__PURE__ */ React.createElement("p", { className: "cl-chart-label" }, "Last 6 months"), /* @__PURE__ */ React.createElement(ResponsiveContainer, { width: "100%", height: 120 }, /* @__PURE__ */ React.createElement(LineChart, { data: monthData, margin: { top: 4, right: 8, left: -20, bottom: 0 } }, /* @__PURE__ */ React.createElement(XAxis, { dataKey: "month", tick: { fontSize: 9, fill: "var(--ink-soft)" } }), /* @__PURE__ */ React.createElement(YAxis, { allowDecimals: false, tick: { fontSize: 9, fill: "var(--ink-soft)" }, width: 24 }), /* @__PURE__ */ React.createElement(
-    Tooltip,
-    {
-      contentStyle: { background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12 },
-      labelStyle: { color: "var(--ink)" },
-      itemStyle: { color: "var(--ink)" }
-    }
-  ), /* @__PURE__ */ React.createElement(Line, { type: "monotone", dataKey: "count", stroke: "#C4501F", strokeWidth: 2, dot: { r: 3 } }))));
 }
 function ProfileView({ slug, me, profiles, logs, commentsMap, onClose, onToggleFollow, onToggleBlock, onMessage, addComment, toggleKudo, toggleSave, onShare, onShareToPost, onOpenLogDetail, onEnlarge, onShareProfile }) {
   const [showFollowers, setShowFollowers] = useState(false);
@@ -1585,11 +1587,26 @@ function drawFullPhotoDesign(ctx, W, H, data, img) {
   ctx.textAlign = "left";
 }
 var DAY_TYPE_COLORS = { boulder: "#C4501F", toprope: "#6B8E4E", lead: "#3A4A63", other: "#8A8578" };
-var DAY_DESIGNS = [
-  { id: "photo", label: "Photo" },
-  { id: "grid", label: "Grid" },
-  { id: "minimal", label: "Minimal" }
+var SUMMARY_DESIGNS = [
+  { id: "blur", label: "Blurred" },
+  { id: "card", label: "Photo card" },
+  { id: "clear", label: "Transparent" }
 ];
+var LOG_DESIGNS = [...SUMMARY_DESIGNS, { id: "full", label: "Full photo" }];
+var CARD_SWATCHES = [null, "#F4F1E8", "#FFFFFF", "#22241F", "#1F3A5F", "#2F5D50", "#6B4C93", "#C4501F", "#D4A017"];
+function clIsLight(hex) {
+  if (!hex) return false;
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 160;
+}
+function clHexA(hex, a) {
+  const h = hex.replace("#", "");
+  return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
+}
+function clTheme(light) {
+  return light ? { text: "#22241F", soft: "#5B5A50", box: "#FFFFFF", boxStroke: "#D9D4C4", chipFill: "#FFFFFF", chipText: "#22241F", neutral: "#BDB6A3" } : { text: "#FFFFFF", soft: "rgba(255,255,255,0.75)", box: "rgba(255,255,255,0.13)", boxStroke: null, chipFill: "rgba(255,255,255,0.13)", chipText: "#FFFFFF", neutral: "rgba(255,255,255,0.5)" };
+}
 function clRoundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
@@ -1618,17 +1635,10 @@ function clFitText(ctx, text, maxW, startPx, minPx, weight) {
   }
   return px;
 }
-function clDayChipItems(data) {
-  return (data.byGrade || []).map((g) => ({
-    text: `${g.type === "boulder" ? g.grade : g.label.replace(TYPE_LABELS[g.type] + " ", "")}  \xD7${g.count}`,
-    prefix: g.type === "boulder" ? "" : g.type === "toprope" ? "TR " : g.type === "lead" ? "Lead " : "",
-    color: gradeColor(g.type, g.grade)
-  }));
-}
 function clDrawChips(ctx, items, cx, y, maxW, opts) {
-  const o = Object.assign({ font: "700 24px sans-serif", h: 50, gap: 12, rowGap: 12, fill: "rgba(255,255,255,0.12)", text: "#FFFFFF", maxRows: 3 }, opts || {});
+  const o = Object.assign({ font: "700 24px sans-serif", h: 50, gap: 12, rowGap: 12, fill: "rgba(255,255,255,0.12)", text: "#FFFFFF", neutral: null, maxRows: 3 }, opts || {});
   ctx.font = o.font;
-  const measured = items.map((it) => ({ ...it, label: it.prefix + it.text, w: ctx.measureText(it.prefix + it.text).width + 62 }));
+  const measured = items.map((it) => ({ ...it, label: (it.prefix || "") + it.text, w: ctx.measureText((it.prefix || "") + it.text).width + (it.color ? 62 : 40) }));
   const rows = [[]];
   let rowW = 0;
   measured.forEach((it) => {
@@ -1639,22 +1649,24 @@ function clDrawChips(ctx, items, cx, y, maxW, opts) {
     rows[rows.length - 1].push(it);
     rowW += (rowW ? o.gap : 0) + it.w;
   });
-  let shownRows = rows.slice(0, o.maxRows);
+  const shownRows = rows.slice(0, o.maxRows);
   const hidden = measured.length - shownRows.reduce((n, r) => n + r.length, 0);
   let cy = y;
   shownRows.forEach((row, ri) => {
-    let items2 = row;
-    if (ri === shownRows.length - 1 && hidden > 0) items2 = [...row, { label: `+${hidden} more`, w: ctx.measureText(`+${hidden} more`).width + 40, color: null }];
-    const total = items2.reduce((n, it) => n + it.w, 0) + o.gap * (items2.length - 1);
+    let row2 = row;
+    if (ri === shownRows.length - 1 && hidden > 0) row2 = [...row, { label: `+${hidden} more`, w: ctx.measureText(`+${hidden} more`).width + 40, color: null }];
+    const total = row2.reduce((n, it) => n + it.w, 0) + o.gap * (row2.length - 1);
     let x = cx - total / 2;
-    items2.forEach((it) => {
+    row2.forEach((it) => {
       clRoundRect(ctx, x, cy, it.w, o.h, o.h / 2);
       ctx.fillStyle = o.fill;
       ctx.fill();
-      if (it.color) {
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = it.color;
+      if (it.color || o.neutral) {
+        ctx.lineWidth = it.color ? 3 : 2;
+        ctx.strokeStyle = it.color || o.neutral;
         ctx.stroke();
+      }
+      if (it.color) {
         ctx.beginPath();
         ctx.arc(x + 26, cy + o.h / 2, 8, 0, Math.PI * 2);
         ctx.fillStyle = it.color;
@@ -1693,113 +1705,159 @@ function clDrawStatBoxes(ctx, stats, x, y, w, h, opts) {
     ctx.fillText(st.label.toUpperCase(), bx + bw / 2, y + h / 2 + 46);
   });
 }
-function clDayStats(data) {
-  return [
-    { value: data.totalClimbs || 0, label: (data.totalClimbs || 0) === 1 ? "climb" : "climbs" },
-    { value: formatDuration(data.totalMinutes) || "0min", label: "time" },
-    { value: data.totalSent || 0, label: "sent" }
-  ];
+function clGradeText(type, grade) {
+  return type === "boulder" ? grade : usGrade(grade);
 }
-function clBestLine(data) {
-  if (!data.bestType) return "";
-  const g = data.bestType === "boulder" ? data.bestGrade : usGrade(data.bestGrade);
-  return `${TYPE_LABELS[data.bestType]} ${g}  \xB7  ${data.bestSent ? "Sent" : "Trying"}`;
+function clDayModel(d) {
+  const best = d.bestType ? `${TYPE_LABELS[d.bestType]} ${clGradeText(d.bestType, d.bestGrade)}  \xB7  ${d.bestSent ? "Sent" : "Trying"}` : "";
+  return {
+    kicker: "BEST CLIMB",
+    kickerColor: "#D4A017",
+    date: d.date,
+    title: d.bestTitle || "No climbs logged",
+    subline: best,
+    stats: [
+      { value: d.totalClimbs || 0, label: (d.totalClimbs || 0) === 1 ? "climb" : "climbs" },
+      { value: formatDuration(d.totalMinutes) || "0min", label: "time" },
+      { value: d.totalSent || 0, label: "sent" }
+    ],
+    chipsTitle: "BY GRADE",
+    chips: (d.byGrade || []).map((g) => ({ prefix: g.type === "boulder" ? "" : g.type === "toprope" ? "TR " : g.type === "lead" ? "Lead " : "", text: `${clGradeText(g.type, g.grade)}  \xD7${g.count}`, color: gradeColor(g.type, g.grade) })),
+    hero: { value: d.totalClimbs || 0, label: (d.totalClimbs || 0) === 1 ? "CLIMB" : "CLIMBS" },
+    heroLine: `${formatDuration(d.totalMinutes) || "0min"}   \xB7   ${d.totalSent || 0} sent`,
+    name: d.name,
+    place: d.place,
+    fallbackColor: d.bestType ? gradeColor(d.bestType, d.bestGrade) : "#8A8578"
+  };
 }
-function drawDaySummaryPhoto(ctx, W, H, data, img) {
-  ctx.fillStyle = "#161712";
+function clLogModel(d) {
+  const g = d.bestType ? clGradeText(d.bestType, d.bestGrade) : "";
+  const gradeLabel = d.bestType ? `${TYPE_LABELS[d.bestType]} ${g}` : "";
+  return {
+    kicker: d.bestSent ? "SENT" : "PROJECT",
+    kickerColor: d.bestSent ? "#6B8E4E" : "#D4A017",
+    date: d.date,
+    title: d.title || "Untitled",
+    subline: [gradeLabel, d.gym].filter(Boolean).join("  \xB7  "),
+    stats: [
+      { value: d.totalTries || 0, label: d.totalTries === 1 ? "try" : "tries" },
+      { value: formatDuration(d.totalMinutes) || "0min", label: "time" },
+      { value: d.sessions || 1, label: (d.sessions || 1) === 1 ? "session" : "sessions" }
+    ],
+    chipsTitle: (d.techniques || []).length ? "TECHNIQUE" : "",
+    chips: (d.techniques || []).map((t) => ({ prefix: "", text: t, color: null })),
+    hero: { value: d.bestSent ? "SENT" : g || "\u2014", label: d.bestSent ? gradeLabel.toUpperCase() : "PROJECT" },
+    clearKicker: "",
+    clearSubline: d.gym || "",
+    heroLine: `${d.totalTries || 0} ${d.totalTries === 1 ? "try" : "tries"}   \xB7   ${formatDuration(d.totalMinutes) || "0min"}`,
+    name: d.name,
+    place: d.place,
+    fallbackColor: d.bestType ? gradeColor(d.bestType, d.bestGrade) : "#8A8578"
+  };
+}
+function drawSummaryBlurred(ctx, W, H, m, img, bg) {
+  const light = clIsLight(bg);
+  const t = clTheme(light);
+  ctx.fillStyle = bg || "#161712";
   ctx.fillRect(0, 0, W, H);
   if (img) {
     ctx.save();
-    ctx.filter = "blur(18px) brightness(0.4)";
+    ctx.filter = light ? "blur(18px) brightness(1.05)" : "blur(18px) brightness(0.42)";
     const scale = Math.max(W / img.width, H / img.height) * 1.15;
     ctx.drawImage(img, (W - img.width * scale) / 2, (H - img.height * scale) / 2, img.width * scale, img.height * scale);
     ctx.restore();
+    if (bg) {
+      ctx.fillStyle = clHexA(bg, light ? 0.74 : 0.55);
+      ctx.fillRect(0, 0, W, H);
+    }
   }
   const cx = W / 2;
   ctx.textAlign = "center";
   ctx.font = "700 22px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.8)";
-  ctx.fillText((data.date || "").toUpperCase(), cx, 96);
+  ctx.fillStyle = t.soft;
+  ctx.fillText((m.date || "").toUpperCase(), cx, 96);
   ctx.font = "800 24px sans-serif";
-  ctx.fillStyle = "#D4A017";
-  ctx.fillText("BEST CLIMB", cx, 206);
-  ctx.fillStyle = "#FFFFFF";
-  const title = data.bestTitle || data.bestClimbLabel || "";
-  clFitText(ctx, title, W - 110, 60, 30, 800);
-  ctx.fillText(title, cx, 276);
+  ctx.fillStyle = m.kickerColor;
+  ctx.fillText(m.kicker, cx, 206);
+  ctx.fillStyle = t.text;
+  clFitText(ctx, m.title, W - 110, 60, 30, 800);
+  ctx.fillText(m.title, cx, 276);
   ctx.font = "600 28px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText(clBestLine(data), cx, 324);
-  clDrawStatBoxes(ctx, clDayStats(data), 50, 390, W - 100, 190);
-  ctx.textAlign = "center";
-  ctx.font = "700 20px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillText("BY GRADE", cx, 656);
-  clDrawChips(ctx, clDayChipItems(data), cx, 684, W - 100, { maxRows: 3, h: 54, font: "700 26px sans-serif" });
+  ctx.fillStyle = t.soft;
+  ctx.fillText(m.subline, cx, 324);
+  clDrawStatBoxes(ctx, m.stats, 50, 390, W - 100, 190, { fill: t.box, stroke: t.boxStroke, value: t.text, label: t.soft });
+  if (m.chips.length) {
+    ctx.textAlign = "center";
+    ctx.font = "700 20px sans-serif";
+    ctx.fillStyle = t.soft;
+    ctx.fillText(m.chipsTitle, cx, 656);
+    clDrawChips(ctx, m.chips, cx, 684, W - 100, { maxRows: 3, h: 54, font: "700 26px sans-serif", fill: t.chipFill, text: t.chipText, neutral: t.neutral });
+  }
   ctx.textAlign = "center";
   ctx.font = "700 28px sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(data.name || "", cx, H - 80);
+  ctx.fillStyle = t.text;
+  ctx.fillText(m.name || "", cx, H - 80);
   ctx.font = "500 20px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.65)";
-  ctx.fillText(`${data.place ? data.place + "  \xB7  " : ""}CHALKLINE`, cx, H - 46);
+  ctx.fillStyle = t.soft;
+  ctx.fillText(`${m.place ? m.place + "  \xB7  " : ""}CHALKLINE`, cx, H - 46);
   ctx.textAlign = "left";
 }
-function drawDaySummaryGrid(ctx, W, H, data, img) {
-  ctx.fillStyle = "#F4F1E8";
+function drawSummaryPhotoCard(ctx, W, H, m, img, bg) {
+  const base = bg || "#F4F1E8";
+  const t = clTheme(clIsLight(base));
+  ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
   const px = 40, pw = W - 80, ph = 440;
-  if (img) {
-    clDrawCover(ctx, img, px, 40, pw, ph, 28);
-  } else {
+  if (img) clDrawCover(ctx, img, px, 40, pw, ph, 28);
+  else {
     clRoundRect(ctx, px, 40, pw, ph, 28);
-    ctx.fillStyle = data.bestType ? gradeColor(data.bestType, data.bestGrade) : "#8A8578";
+    ctx.fillStyle = m.fallbackColor;
     ctx.fill();
   }
   ctx.save();
   clRoundRect(ctx, px, 40, pw, ph, 28);
   ctx.clip();
-  const grad = ctx.createLinearGradient(0, 40 + ph - 190, 0, 40 + ph);
+  const grad = ctx.createLinearGradient(0, 40 + ph - 200, 0, 40 + ph);
   grad.addColorStop(0, "rgba(0,0,0,0)");
-  grad.addColorStop(1, "rgba(0,0,0,0.78)");
+  grad.addColorStop(1, "rgba(0,0,0,0.8)");
   ctx.fillStyle = grad;
-  ctx.fillRect(px, 40 + ph - 190, pw, 190);
+  ctx.fillRect(px, 40 + ph - 200, pw, 200);
   ctx.restore();
   ctx.font = "800 20px sans-serif";
-  const badge = "BEST CLIMB";
-  const bw = ctx.measureText(badge).width + 36;
+  const bw = ctx.measureText(m.kicker).width + 36;
   clRoundRect(ctx, px + 22, 62, bw, 42, 21);
-  ctx.fillStyle = "#D4A017";
+  ctx.fillStyle = m.kickerColor;
   ctx.fill();
   ctx.fillStyle = "#FFFFFF";
   ctx.textAlign = "left";
-  ctx.fillText(badge, px + 40, 90);
-  const title = data.bestTitle || data.bestClimbLabel || "";
-  clFitText(ctx, title, pw - 48, 46, 26, 800);
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(title, px + 26, 40 + ph - 62);
+  ctx.fillText(m.kicker, px + 40, 90);
+  clFitText(ctx, m.title, pw - 48, 46, 26, 800);
+  ctx.fillText(m.title, px + 26, 40 + ph - 62);
   ctx.font = "600 24px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.88)";
-  ctx.fillText(clBestLine(data), px + 26, 40 + ph - 26);
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fillText(m.subline, px + 26, 40 + ph - 26);
   ctx.font = "700 21px sans-serif";
-  ctx.fillStyle = "#5B5A50";
-  ctx.fillText((data.date || "").toUpperCase(), px, 526);
+  ctx.fillStyle = t.soft;
+  ctx.fillText((m.date || "").toUpperCase(), px, 526);
   ctx.textAlign = "right";
   ctx.fillText("CHALKLINE", px + pw, 526);
-  clDrawStatBoxes(ctx, clDayStats(data), px, 552, pw, 150, { fill: "#FFFFFF", stroke: "#D9D4C4", value: "#22241F", label: "#5B5A50" });
-  ctx.textAlign = "center";
-  ctx.font = "700 20px sans-serif";
-  ctx.fillStyle = "#5B5A50";
-  ctx.fillText("BY GRADE", W / 2, 752);
-  clDrawChips(ctx, clDayChipItems(data), W / 2, 774, pw, { fill: "#FFFFFF", text: "#22241F", maxRows: 2, h: 48 });
+  clDrawStatBoxes(ctx, m.stats, px, 552, pw, 150, { fill: t.box, stroke: t.boxStroke, value: t.text, label: t.soft });
+  if (m.chips.length) {
+    ctx.textAlign = "center";
+    ctx.font = "700 20px sans-serif";
+    ctx.fillStyle = t.soft;
+    ctx.fillText(m.chipsTitle, W / 2, 752);
+    clDrawChips(ctx, m.chips, W / 2, 774, pw, { fill: t.chipFill, text: t.chipText, neutral: t.neutral, maxRows: 2, h: 48 });
+  }
   ctx.textAlign = "center";
   ctx.font = "700 26px sans-serif";
-  ctx.fillStyle = "#22241F";
-  ctx.fillText(`${data.name || ""}${data.place ? "  \xB7  " + data.place : ""}`, W / 2, H - 44);
+  ctx.fillStyle = t.text;
+  ctx.fillText(`${m.name || ""}${m.place ? "  \xB7  " + m.place : ""}`, W / 2, H - 44);
   ctx.textAlign = "left";
 }
-function drawDaySummaryMinimal(ctx, W, H, data, bgImg) {
+function drawSummaryClear(ctx, W, H, m, bgImg, bg) {
   ctx.clearRect(0, 0, W, H);
+  let light = false;
   if (bgImg) {
     clDrawCover(ctx, bgImg, 0, 0, W, H, 0);
     const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -1808,57 +1866,52 @@ function drawDaySummaryMinimal(ctx, W, H, data, bgImg) {
     g.addColorStop(1, "rgba(0,0,0,0.6)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+  } else if (bg) {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    light = clIsLight(bg);
   }
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 16;
-  ctx.shadowOffsetY = 2;
+  const t = clTheme(light);
+  const shadow = () => {
+    if (light) return;
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 16;
+    ctx.shadowOffsetY = 2;
+  };
   const cx = W / 2;
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = "700 24px sans-serif";
-  ctx.fillText((data.date || "").toUpperCase(), cx, 96);
-  ctx.font = "800 200px sans-serif";
-  ctx.fillText(String(data.totalClimbs || 0), cx, 318);
-  ctx.font = "800 32px sans-serif";
-  ctx.fillText((data.totalClimbs || 0) === 1 ? "CLIMB" : "CLIMBS", cx, 368);
-  ctx.font = "600 30px sans-serif";
-  ctx.fillText(`${formatDuration(data.totalMinutes) || "0min"}   \xB7   ${data.totalSent || 0} sent`, cx, 424);
-  ctx.font = "700 22px sans-serif";
-  ctx.fillText("BEST CLIMB", cx, 520);
-  const title = data.bestTitle || data.bestClimbLabel || "";
-  clFitText(ctx, title, W - 120, 46, 26, 800);
-  ctx.fillText(title, cx, 572);
-  ctx.font = "600 26px sans-serif";
-  ctx.fillText(clBestLine(data), cx, 612);
-  ctx.restore();
-  clDrawChips(ctx, clDayChipItems(data), cx, 668, W - 100, { fill: "rgba(0,0,0,0.28)", maxRows: 2, h: 48 });
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 14;
+  shadow();
   ctx.textAlign = "center";
-  ctx.fillStyle = "#FFFFFF";
+  ctx.fillStyle = t.text;
+  ctx.font = "700 24px sans-serif";
+  ctx.fillText((m.date || "").toUpperCase(), cx, 96);
+  clFitText(ctx, String(m.hero.value), W - 120, 200, 60, 800);
+  ctx.fillText(String(m.hero.value), cx, 318);
+  clFitText(ctx, m.hero.label, W - 120, 32, 20, 800);
+  ctx.fillText(m.hero.label, cx, 368);
+  ctx.font = "600 30px sans-serif";
+  ctx.fillText(m.heroLine, cx, 424);
+  ctx.font = "700 22px sans-serif";
+  ctx.fillStyle = light ? t.soft : t.text;
+  const ck = m.clearKicker !== void 0 ? m.clearKicker : m.kicker;
+  if (ck) ctx.fillText(ck, cx, 520);
+  ctx.fillStyle = t.text;
+  clFitText(ctx, m.title, W - 120, 46, 26, 800);
+  ctx.fillText(m.title, cx, 572);
+  ctx.font = "600 26px sans-serif";
+  ctx.fillText(m.clearSubline !== void 0 ? m.clearSubline : m.subline, cx, 612);
+  ctx.restore();
+  if (m.chips.length) clDrawChips(ctx, m.chips, cx, 668, W - 100, { fill: light ? t.chipFill : "rgba(0,0,0,0.28)", text: t.chipText, neutral: light ? t.neutral : "rgba(255,255,255,0.55)", maxRows: 2, h: 48 });
+  ctx.save();
+  shadow();
+  ctx.textAlign = "center";
+  ctx.fillStyle = t.text;
   ctx.font = "700 28px sans-serif";
-  ctx.fillText(data.name || "", cx, H - 82);
+  ctx.fillText(m.name || "", cx, H - 82);
   ctx.font = "600 20px sans-serif";
   ctx.fillText("CHALKLINE", cx, H - 48);
   ctx.restore();
   ctx.textAlign = "left";
-}
-function generateQRDataUrl(text, size) {
-  return new Promise((resolve, reject) => {
-    loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js", () => !!window.QRCode).then(() => {
-      const div = document.createElement("div");
-      new window.QRCode(div, { text, width: size, height: size, colorDark: "#22241F", colorLight: "#FFFFFF" });
-      setTimeout(() => {
-        const img = div.querySelector("img");
-        const canvas = div.querySelector("canvas");
-        if (img && img.src) resolve(img.src);
-        else if (canvas) resolve(canvas.toDataURL());
-        else reject(new Error("QR generation failed"));
-      }, 60);
-    }).catch(reject);
-  });
 }
 var NAME_TAG_DESIGNS = [
   { id: "blurred", label: "Blurred" },
@@ -1962,8 +2015,12 @@ function ShareCardModal({ data, onClose }) {
   const [copied, setCopied] = useState(false);
   const isProfile = data.variant === "profile";
   const isToday = data.variant === "today";
-  const [design, setDesign] = useState(isProfile ? "blurred" : isToday ? "photo" : "badge");
+  const isLog = data.variant === "log";
+  const isSummary = isToday || isLog;
+  const designs = isProfile ? NAME_TAG_DESIGNS : isToday ? SUMMARY_DESIGNS : isLog ? LOG_DESIGNS : SHARE_DESIGNS;
+  const [design, setDesign] = useState(isProfile ? "blurred" : isSummary ? "blur" : "badge");
   const [customBg, setCustomBg] = useState(null);
+  const [cardBg, setCardBg] = useState(null);
   useEffect(() => {
     if (!data.username || !navigator.clipboard) return;
     const link = `${window.location.origin}${window.location.pathname}?u=${encodeURIComponent(data.username)}`;
@@ -2001,21 +2058,24 @@ function ShareCardModal({ data, onClose }) {
       });
       return;
     }
-    if (isToday) {
-      const renderDay = (img2) => {
-        if (design === "grid") drawDaySummaryGrid(ctx, W, H, data, img2);
-        else if (design === "minimal") drawDaySummaryMinimal(ctx, W, H, data, img2);
-        else drawDaySummaryPhoto(ctx, W, H, data, img2);
+    if (isSummary) {
+      const model = isToday ? clDayModel(data) : clLogModel(data);
+      const heroPhoto = isToday ? data.bestPhoto : data.photo;
+      const renderCard = (img2) => {
+        if (design === "full") drawFullPhotoDesign(ctx, W, H, data, img2);
+        else if (design === "card") drawSummaryPhotoCard(ctx, W, H, model, img2, cardBg);
+        else if (design === "clear") drawSummaryClear(ctx, W, H, model, img2, cardBg);
+        else drawSummaryBlurred(ctx, W, H, model, img2, cardBg);
         finish();
       };
-      const src = design === "minimal" ? customBg : design === "grid" ? data.bestPhoto : data.bestPhoto || data.photo;
+      const src = design === "clear" ? customBg : design === "blur" ? heroPhoto || data.photo : heroPhoto;
       if (src) {
         const img = new Image();
-        img.onload = () => renderDay(img);
-        img.onerror = () => renderDay(null);
+        img.onload = () => renderCard(img);
+        img.onerror = () => renderCard(null);
         img.src = src;
       } else {
-        renderDay(null);
+        renderCard(null);
       }
       return;
     }
@@ -2033,7 +2093,7 @@ function ShareCardModal({ data, onClose }) {
     } else {
       render(null);
     }
-  }, [data, design, customBg]);
+  }, [data, design, customBg, cardBg]);
   const download = async () => {
     try {
       const res = await fetch(imgUrl);
@@ -2070,7 +2130,7 @@ function ShareCardModal({ data, onClose }) {
     } catch {
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), copied && /* @__PURE__ */ React.createElement("p", { className: "cl-copied-toast" }, "Link copied to clipboard"), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, (isProfile ? NAME_TAG_DESIGNS : isToday ? DAY_DESIGNS : SHARE_DESIGNS).map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: isToday && design === "minimal" && !customBg ? "cl-share-preview cl-share-transparent" : "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), isToday && design === "minimal" && /* @__PURE__ */ React.createElement("div", { className: "cl-bg-options" }, /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { margin: "0 0 8px" } }, customBg ? "Using your photo as the background." : "Transparent PNG \u2014 place it over any photo or story."), /* @__PURE__ */ React.createElement("div", { className: "cl-bg-buttons" }, /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", id: "cl-card-bg", className: "cl-file-hidden", onChange: async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setCustomBg(await resizeImage(f, 1200, 0.85)); e.target.value = ""; } }), /* @__PURE__ */ React.createElement("label", { htmlFor: "cl-card-bg", className: "cl-bg-btn" }, /* @__PURE__ */ React.createElement(Images, { size: 16 }), customBg ? " Change photo" : " Add my photo"), customBg && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => setCustomBg(null) }, "Transparent"))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), copied && /* @__PURE__ */ React.createElement("p", { className: "cl-copied-toast" }, "Link copied to clipboard"), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-segmented cl-design-picker", role: "tablist" }, designs.map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-segment active" : "cl-segment", onClick: () => setDesign(d.id), role: "tab", "aria-selected": design === d.id }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: isSummary && design === "clear" && !customBg && !cardBg ? "cl-share-preview cl-share-transparent" : "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), isSummary && design !== "full" && /* @__PURE__ */ React.createElement("div", { className: "cl-swatches", role: "radiogroup", "aria-label": "Card background color" }, CARD_SWATCHES.map((c) => /* @__PURE__ */ React.createElement("button", { key: c || "auto", className: (cardBg === c ? "cl-swatch active" : "cl-swatch") + (c ? "" : " cl-swatch-auto"), style: c ? { background: c } : void 0, role: "radio", "aria-checked": cardBg === c, "aria-label": c ? `Background ${c}` : design === "clear" ? "No background" : "Default background", onClick: () => { setCardBg(c); if (c) setCustomBg(null); } }))), isSummary && design === "clear" && /* @__PURE__ */ React.createElement("div", { className: "cl-bg-options" }, /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { margin: "0 0 8px" } }, customBg ? "Using your photo as the background." : cardBg ? "Solid color background." : "Transparent PNG \u2014 place it over any photo or story."), /* @__PURE__ */ React.createElement("div", { className: "cl-bg-buttons" }, /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", id: "cl-card-bg", className: "cl-file-hidden", onChange: async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setCustomBg(await resizeImage(f, 1200, 0.85)); setCardBg(null); e.target.value = ""; } }), /* @__PURE__ */ React.createElement("label", { htmlFor: "cl-card-bg", className: "cl-bg-btn" }, /* @__PURE__ */ React.createElement(Images, { size: 16 }), customBg ? " Change photo" : " Add my photo"), customBg && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => setCustomBg(null) }, "Transparent"))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
 }
 function GuestProfileView({ username, onGoToLogin }) {
   const [profile, setProfile] = useState(null);
@@ -2360,7 +2420,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
   })), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row" }, boulderShown && boulderShown !== "NA" && /* @__PURE__ */ React.createElement(GradeChip, { type: "boulder", grade: boulderShown }), routeShown && routeShown !== "NA" && /* @__PURE__ */ React.createElement(GradeChip, { type: "toprope", grade: routeShown, label: "Route" })), profile.qualifications && profile.qualifications.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => {
     const Ic = QUALIFICATION_ICONS[q] || GraduationCap;
     return /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill cl-qual-pill", key: i }, /* @__PURE__ */ React.createElement(Ic, { size: 11 }), " ", q);
-  })), profile.gear && profile.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-toggles" }, /* @__PURE__ */ React.createElement("div", { className: "cl-training-stats" }, /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat" }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 15 }), /* @__PURE__ */ React.createElement("b", null, stats.totalSent), " sent"), trackedTypes.map((t) => {
+  })), profile.gear && profile.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-toggles" }, /* @__PURE__ */ React.createElement("div", { className: "cl-training-stats" }, /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat" }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 12 }), /* @__PURE__ */ React.createElement("b", null, stats.totalSent), " sent"), trackedTypes.map((t) => {
     const count = stats[`${t}Count`];
     const mins = stats.minutesByType[t];
     let val;
@@ -2368,7 +2428,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
     else if (statMetric === "hours") val = formatDuration(mins) || "0min";
     else val = `${count} \xB7 ${formatDuration(mins) || "0min"}`;
     const Icon = TYPE_ICONS[t];
-    return /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat", key: t }, /* @__PURE__ */ React.createElement(Icon, { size: 15 }), " ", TYPE_LABELS[t], " ", /* @__PURE__ */ React.createElement("b", null, val));
+    return /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat", key: t }, /* @__PURE__ */ React.createElement(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", /* @__PURE__ */ React.createElement("b", null, val));
   })), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowBadges((v) => !v) }, /* @__PURE__ */ React.createElement(Award, { size: 14 }), " ", earnedCount, "/", badges.length, " badges"), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowCharts((v) => !v) }, /* @__PURE__ */ React.createElement(TrendingUp, { size: 14 }), " Progress")), showBadges && /* @__PURE__ */ React.createElement(BadgesGrid, { stats, onShareBadge }), showCharts && /* @__PURE__ */ React.createElement(ProgressCharts, { mine: climbLogs })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("posts"), role: "tab", "aria-selected": view === "posts" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "saved" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("saved"), role: "tab", "aria-selected": view === "saved" }, "Saved")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: "cl-tabbar-icon", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list"), "aria-label": logViewMode === "list" ? "Show as grid" : "Show as list" }, logViewMode === "list" ? /* @__PURE__ */ React.createElement(LayoutGrid, { size: 18 }) : /* @__PURE__ */ React.createElement(ListIcon, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showFilters ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowFilters((v) => !v), "aria-label": "Filter" }, /* @__PURE__ */ React.createElement(Filter, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareDay(group.ts), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
@@ -2401,7 +2461,7 @@ function FeedTab({ me, profile, logs, profiles, commentsMap, addComment, toggleK
   if (feedTab === "following") scoped = visible.filter((l) => (profile.following || []).includes(l.authorSlug));
   if (feedTab === "deals") scoped = visible.filter((l) => l.kind === "deal");
   const filtered = scoped.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab", style: { position: "relative", minHeight: "60vh" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: feedTab === "following" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("following") }, "Following"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "suggested" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("suggested") }, "Suggested"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "deals" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("deals") }, /* @__PURE__ */ React.createElement(TagIcon, { size: 13 }), " Good deals"))), filtered.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing here yet."), filtered.map((entry) => /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab", style: { position: "relative", minHeight: "60vh" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar cl-tabbar-even" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: feedTab === "following" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("following") }, "Following"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "suggested" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("suggested") }, "Suggested"), /* @__PURE__ */ React.createElement("button", { className: feedTab === "deals" ? "cl-tbtab active" : "cl-tbtab", role: "tab", onClick: () => setFeedTab("deals") }, /* @__PURE__ */ React.createElement(TagIcon, { size: 13 }), " Good deals"))), filtered.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing here yet."), filtered.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
       key: entry.id,
@@ -2457,6 +2517,8 @@ function SessionCard({ session, profiles, me, onJoin, onLeave, onDelete, onOpenP
 }
 function SessionsTab({ me, profile, sessions, profiles, addSession, joinSession, leaveSession, deleteSession, onOpenProfile, commentsMap, addComment }) {
   const [showForm, setShowForm] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
   const [kind, setKind] = useState("climb");
   const [gym, setGym] = useState(profile.mainGym || GYM_OPTIONS[0]);
   const [date, setDate] = useState("");
@@ -2501,7 +2563,7 @@ function SessionsTab({ me, profile, sessions, profiles, addSession, joinSession,
   const upcoming = sessions.filter(
     (s) => (query.trim() === "" || s.gym.toLowerCase().includes(query.toLowerCase()) || (s.note || "").toLowerCase().includes(query.toLowerCase()) || (s.creatorName || "").toLowerCase().includes(query.toLowerCase())) && (kindFilter === "all" || s.kind === kindFilter) && (gymFilter === "all" || s.gym === gymFilter) && (fromDate === "" || s.date >= fromDate)
   ).sort((a, b) => a.date.localeCompare(b.date));
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nice-search" }, /* @__PURE__ */ React.createElement(Search, { size: 16 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input cl-nice-search-input", placeholder: "Search by gym, host, or note\u2026", value: query, onChange: (e) => setQuery(e.target.value) }), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn cl-add-btn", title: "Plan", onClick: () => setShowForm((v) => !v) }, /* @__PURE__ */ React.createElement(Plus, { size: 19 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-filter-bar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row" }, [["all", "All"], ["climb", "Climb together"], ["course", "Courses"]].map(([val, lbl]) => /* @__PURE__ */ React.createElement("button", { key: val, className: kindFilter === val ? "cl-pill active" : "cl-pill", onClick: () => setKindFilter(val) }, lbl))), /* @__PURE__ */ React.createElement("div", { className: "cl-filter-bar-row" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: gymFilter, onChange: (e) => setGymFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All gyms"), gyms.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-date-filter" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 14 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "date", value: fromDate, onChange: (e) => setFromDate(e.target.value) }), fromDate && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setFromDate("") }, /* @__PURE__ */ React.createElement(X, { size: 13 }))))), showForm && /* @__PURE__ */ React.createElement("div", { className: "cl-card cl-form-card" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "What is this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: kind === "climb" ? "cl-toggle active" : "cl-toggle", onClick: () => setKind("climb") }, "Climb together"), /* @__PURE__ */ React.createElement("button", { className: kind === "course" ? "cl-toggle active" : "cl-toggle", onClick: () => setKind("course") }, "Host a course")), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Gym or crag"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: gym, onChange: (e) => setGym(e.target.value), list: "cl-gyms2" }), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms2" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g }))), /* @__PURE__ */ React.createElement("div", { className: "cl-two-col" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Date"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "date", value: date, onChange: (e) => setDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Time"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "time", value: time, onChange: (e) => setTime(e.target.value) }))), kind === "course" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Who's it for"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: level, onChange: (e) => setLevel(e.target.value), placeholder: "e.g. Beginners, basic belay certification" })), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "How many friends can join (not counting you)?"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "number", min: "1", value: capacity, onChange: (e) => setCapacity(e.target.value) }), crew.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Invite specific friends (optional)"), /* @__PURE__ */ React.createElement("div", { className: "cl-invite-list" }, crew.map((p) => /* @__PURE__ */ React.createElement("button", { key: p.slug, type: "button", className: invited.includes(p.slug) ? "cl-qual-chip active" : "cl-qual-chip", onClick: () => toggleInvite(p.slug) }, invited.includes(p.slug) && /* @__PURE__ */ React.createElement(Check, { size: 12 }), " ", p.name)))), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Note"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: note, onChange: (e) => setNote(e.target.value), placeholder: "Meet at the entrance, bring shoes\u2026" }), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => setShowForm(false) }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: create, disabled: !date }, kind === "course" ? "Create course" : "Create session"))), upcoming.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing matches. Tap + to plan one."), upcoming.map((s) => /* @__PURE__ */ React.createElement(SessionCard, { key: s.id, session: s, profiles, me, onJoin: joinSession, onLeave: leaveSession, onDelete: deleteSession, onOpenProfile, comments: commentsMap[s.id] || [], onComment: addComment })));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: kindFilter === "all" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setKindFilter("all"), role: "tab" }, "All"), /* @__PURE__ */ React.createElement("button", { className: kindFilter === "climb" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setKindFilter("climb"), role: "tab" }, "Climb together"), /* @__PURE__ */ React.createElement("button", { className: kindFilter === "course" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setKindFilter("course"), role: "tab" }, "Courses")), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search sessions" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showFilter || gymFilter !== "all" || fromDate ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowFilter((v) => !v), "aria-label": "Filter sessions" }, /* @__PURE__ */ React.createElement(Filter, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-nice-search" }, /* @__PURE__ */ React.createElement(Search, { size: 16 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input cl-nice-search-input", placeholder: "Search by gym, host, or note\u2026", value: query, onChange: (e) => setQuery(e.target.value), autoFocus: true })), showFilter && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-bar-row" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: gymFilter, onChange: (e) => setGymFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All gyms"), gyms.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-date-filter" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 14 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "date", value: fromDate, onChange: (e) => setFromDate(e.target.value) }), fromDate && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setFromDate("") }, /* @__PURE__ */ React.createElement(X, { size: 13 })))), showForm && /* @__PURE__ */ React.createElement("div", { className: "cl-card cl-form-card" }, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "What is this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: kind === "climb" ? "cl-toggle active" : "cl-toggle", onClick: () => setKind("climb") }, "Climb together"), /* @__PURE__ */ React.createElement("button", { className: kind === "course" ? "cl-toggle active" : "cl-toggle", onClick: () => setKind("course") }, "Host a course")), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Gym or crag"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: gym, onChange: (e) => setGym(e.target.value), list: "cl-gyms2" }), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms2" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g }))), /* @__PURE__ */ React.createElement("div", { className: "cl-two-col" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Date"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "date", value: date, onChange: (e) => setDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Time"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "time", value: time, onChange: (e) => setTime(e.target.value) }))), kind === "course" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Who's it for"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: level, onChange: (e) => setLevel(e.target.value), placeholder: "e.g. Beginners, basic belay certification" })), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "How many friends can join (not counting you)?"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", type: "number", min: "1", value: capacity, onChange: (e) => setCapacity(e.target.value) }), crew.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Invite specific friends (optional)"), /* @__PURE__ */ React.createElement("div", { className: "cl-invite-list" }, crew.map((p) => /* @__PURE__ */ React.createElement("button", { key: p.slug, type: "button", className: invited.includes(p.slug) ? "cl-qual-chip active" : "cl-qual-chip", onClick: () => toggleInvite(p.slug) }, invited.includes(p.slug) && /* @__PURE__ */ React.createElement(Check, { size: 12 }), " ", p.name)))), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Note"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: note, onChange: (e) => setNote(e.target.value), placeholder: "Meet at the entrance, bring shoes\u2026" }), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => setShowForm(false) }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: create, disabled: !date }, kind === "course" ? "Create course" : "Create session"))), upcoming.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing matches. Tap + to plan one."), upcoming.map((s) => /* @__PURE__ */ React.createElement(SessionCard, { key: s.id, session: s, profiles, me, onJoin: joinSession, onLeave: leaveSession, onDelete: deleteSession, onOpenProfile, comments: commentsMap[s.id] || [], onComment: addComment })), /* @__PURE__ */ React.createElement("button", { className: "cl-fab-add", onClick: () => setShowForm((v) => !v), "aria-label": showForm ? "Close" : "Plan a session" }, showForm ? /* @__PURE__ */ React.createElement(X, { size: 24 }) : /* @__PURE__ */ React.createElement(Plus, { size: 24 })));
 }
 function ChatTab({ me, profile, profiles, threads, sendMessage, onOpenProfile, onToggleBlock, openWith, onConsumeOpenWith, onOpenSharedPost }) {
   const [activeWith, setActiveWith] = useState(null);
@@ -2800,10 +2862,22 @@ function ChalklineApp() {
     const gradeText = primary ? primary.type === "boulder" ? primary.grade : usGrade(primary.grade) : "";
     const gradeLabel = primary ? `${TYPE_LABELS[primary.type]} ${gradeText}` : entry.title;
     const totals = computeEntryTotals(entry.updates);
+    const wall = wallsFromEntry(entry)[0] || (primary ? { type: primary.type, grade: primary.grade, sent: finished } : null);
+    const techniques = [...new Set(entry.updates.flatMap((u) => u.technique || []))];
     setShareData({
+      variant: "log",
+      title: entry.title || "Untitled",
+      gym: entry.gym || "",
+      bestType: wall ? wall.type : null,
+      bestGrade: wall ? wall.grade : null,
+      bestSent: finished,
+      totalTries: totals.totalTries,
+      totalMinutes: totals.totalMinutes,
+      sessions: totals.logCount,
+      techniques,
       name: author.name,
       username: author.username,
-      place: entry.gym,
+      place: "",
       achievement: finished ? "Sent!" : "Trying",
       statusLabel: gradeLabel,
       statsLines: [
@@ -3155,7 +3229,7 @@ function ChalklineApp() {
         .cl-badge-top { align-items: flex-start; }
         .cl-badge-id { flex: 1; min-width: 0; }
         .cl-badge-id h2 { font-size: 22px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .cl-badge-actions { display: flex; flex-shrink: 0; background: var(--bg); border-radius: 12px; padding: 2px; }
+        .cl-badge-actions { display: flex; flex-direction: column; flex-shrink: 0; background: var(--bg); border-radius: 12px; padding: 2px; margin: -4px -4px 0 0; }
         .cl-badge-action { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border: none; background: none; border-radius: 10px; color: var(--ink); cursor: pointer; }
         .cl-badge-action:active { background: var(--line); }
         .cl-name-row { display: flex; align-items: center; gap: 6px; }
@@ -3164,9 +3238,9 @@ function ChalklineApp() {
         .cl-id-stat { display: flex; flex-direction: column; align-items: center; background: none; border: none; cursor: default; font-family: inherit; }
         .cl-id-stat b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
         .cl-id-stat span { font-size: 11px; color: var(--ink-soft); }
-        .cl-training-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; width: 100%; margin: 4px 0 8px; }
-        .cl-training-stat { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink-soft); background: var(--bg); border-radius: 10px; padding: 9px 11px; }
-        .cl-training-stat b { color: var(--ink); font-weight: 700; margin-left: auto; }
+        .cl-training-stats { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin: 2px 0 6px; }
+        .cl-training-stat { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); background: var(--bg); border-radius: 20px; padding: 4px 10px; }
+        .cl-training-stat b { color: var(--ink); font-weight: 700; }
 
         .cl-chip-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
         .cl-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid; border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
@@ -3439,6 +3513,24 @@ function ChalklineApp() {
         .cl-bg-options { margin: 4px auto 6px; max-width: 340px; }
         .cl-bg-buttons { display: flex; gap: 8px; justify-content: center; }
         .cl-bg-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .cl-design-picker { max-width: 460px; margin: 0 auto 10px; }
+        .cl-design-picker .cl-segment { font-size: 12.5px; padding: 0 4px; }
+        .cl-swatches { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 6px auto 10px; max-width: 360px; }
+        .cl-swatch { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; box-shadow: inset 0 0 0 2px rgba(255,255,255,0.35); }
+        .cl-swatch.active { outline: 3px solid var(--accent2); outline-offset: 2px; }
+        .cl-swatch-auto { background: linear-gradient(135deg, var(--surface) 44%, var(--accent2) 44%, var(--accent2) 56%, var(--surface) 56%); }
+        .cl-log-title-block { margin: 2px 0 14px; }
+        .cl-log-title { font-family: 'Big Shoulders Display', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.08; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+        .cl-log-title-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+        .cl-tabbar-even .cl-tabs { flex: 1; justify-content: space-evenly; }
+        .cl-tabbar-even .cl-tbtab { justify-content: center; }
+        .cl-chart-card { margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 6px 14px 14px; }
+        .cl-chart-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 4px; }
+        .cl-chart-summary > div { background: var(--bg); border-radius: 12px; padding: 10px 6px; text-align: center; }
+        .cl-chart-summary b { display: block; font-family: 'Big Shoulders Display', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.1; }
+        .cl-chart-summary span { font-size: 11.5px; color: var(--ink-soft); }
+        .cl-chart-block { margin-top: 14px; }
+        .cl-chart-title { font-size: 12.5px; font-weight: 700; color: var(--ink); margin: 0 0 6px; }
         .cl-overlay.cl-layer-day { z-index: 105; }
         .cl-overlay.cl-layer-log { z-index: 110; }
         .cl-overlay.cl-layer-top { z-index: 120; }
