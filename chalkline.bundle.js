@@ -1590,133 +1590,259 @@ var DAY_DESIGNS = [
   { id: "grid", label: "Grid" },
   { id: "minimal", label: "Minimal" }
 ];
+function clRoundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+function clDrawCover(ctx, img, x, y, w, h, r) {
+  ctx.save();
+  clRoundRect(ctx, x, y, w, h, r || 0);
+  ctx.clip();
+  const scale = Math.max(w / img.width, h / img.height);
+  const sw = img.width * scale, sh = img.height * scale;
+  ctx.drawImage(img, x + (w - sw) / 2, y + (h - sh) / 2, sw, sh);
+  ctx.restore();
+}
+function clFitText(ctx, text, maxW, startPx, minPx, weight) {
+  let px = startPx;
+  ctx.font = `${weight || 800} ${px}px sans-serif`;
+  while (px > minPx && ctx.measureText(text).width > maxW) {
+    px -= 2;
+    ctx.font = `${weight || 800} ${px}px sans-serif`;
+  }
+  return px;
+}
+function clDayChipItems(data) {
+  return (data.byGrade || []).map((g) => ({
+    text: `${g.type === "boulder" ? g.grade : g.label.replace(TYPE_LABELS[g.type] + " ", "")}  \xD7${g.count}`,
+    prefix: g.type === "boulder" ? "" : g.type === "toprope" ? "TR " : g.type === "lead" ? "Lead " : "",
+    color: gradeColor(g.type, g.grade)
+  }));
+}
+function clDrawChips(ctx, items, cx, y, maxW, opts) {
+  const o = Object.assign({ font: "700 24px sans-serif", h: 50, gap: 12, rowGap: 12, fill: "rgba(255,255,255,0.12)", text: "#FFFFFF", maxRows: 3 }, opts || {});
+  ctx.font = o.font;
+  const measured = items.map((it) => ({ ...it, label: it.prefix + it.text, w: ctx.measureText(it.prefix + it.text).width + 62 }));
+  const rows = [[]];
+  let rowW = 0;
+  measured.forEach((it) => {
+    if (rows[rows.length - 1].length && rowW + o.gap + it.w > maxW) {
+      rows.push([]);
+      rowW = 0;
+    }
+    rows[rows.length - 1].push(it);
+    rowW += (rowW ? o.gap : 0) + it.w;
+  });
+  let shownRows = rows.slice(0, o.maxRows);
+  const hidden = measured.length - shownRows.reduce((n, r) => n + r.length, 0);
+  let cy = y;
+  shownRows.forEach((row, ri) => {
+    let items2 = row;
+    if (ri === shownRows.length - 1 && hidden > 0) items2 = [...row, { label: `+${hidden} more`, w: ctx.measureText(`+${hidden} more`).width + 40, color: null }];
+    const total = items2.reduce((n, it) => n + it.w, 0) + o.gap * (items2.length - 1);
+    let x = cx - total / 2;
+    items2.forEach((it) => {
+      clRoundRect(ctx, x, cy, it.w, o.h, o.h / 2);
+      ctx.fillStyle = o.fill;
+      ctx.fill();
+      if (it.color) {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = it.color;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x + 26, cy + o.h / 2, 8, 0, Math.PI * 2);
+        ctx.fillStyle = it.color;
+        ctx.fill();
+      }
+      ctx.fillStyle = o.text;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(it.label, x + (it.color ? 44 : 20), cy + o.h / 2 + 1);
+      ctx.textBaseline = "alphabetic";
+      x += it.w + o.gap;
+    });
+    cy += o.h + o.rowGap;
+  });
+  return cy;
+}
+function clDrawStatBoxes(ctx, stats, x, y, w, h, opts) {
+  const o = Object.assign({ fill: "rgba(255,255,255,0.12)", stroke: null, value: "#FFFFFF", label: "rgba(255,255,255,0.75)", gap: 14 }, opts || {});
+  const bw = (w - o.gap * (stats.length - 1)) / stats.length;
+  stats.forEach((st, i) => {
+    const bx = x + i * (bw + o.gap);
+    clRoundRect(ctx, bx, y, bw, h, 22);
+    ctx.fillStyle = o.fill;
+    ctx.fill();
+    if (o.stroke) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = o.stroke;
+      ctx.stroke();
+    }
+    ctx.textAlign = "center";
+    ctx.fillStyle = o.value;
+    clFitText(ctx, String(st.value), bw - 24, 54, 26, 800);
+    ctx.fillText(String(st.value), bx + bw / 2, y + h / 2 + 10);
+    ctx.font = "600 21px sans-serif";
+    ctx.fillStyle = o.label;
+    ctx.fillText(st.label.toUpperCase(), bx + bw / 2, y + h / 2 + 46);
+  });
+}
+function clDayStats(data) {
+  return [
+    { value: data.totalClimbs || 0, label: (data.totalClimbs || 0) === 1 ? "climb" : "climbs" },
+    { value: formatDuration(data.totalMinutes) || "0min", label: "time" },
+    { value: data.totalSent || 0, label: "sent" }
+  ];
+}
+function clBestLine(data) {
+  if (!data.bestType) return "";
+  const g = data.bestType === "boulder" ? data.bestGrade : usGrade(data.bestGrade);
+  return `${TYPE_LABELS[data.bestType]} ${g}  \xB7  ${data.bestSent ? "Sent" : "Trying"}`;
+}
 function drawDaySummaryPhoto(ctx, W, H, data, img) {
   ctx.fillStyle = "#161712";
   ctx.fillRect(0, 0, W, H);
   if (img) {
     ctx.save();
-    ctx.filter = "blur(16px) brightness(0.38)";
-    const scale = Math.max(W / img.width, H / img.height) * 1.12;
-    const sw = img.width * scale, sh = img.height * scale;
-    ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh);
+    ctx.filter = "blur(18px) brightness(0.4)";
+    const scale = Math.max(W / img.width, H / img.height) * 1.15;
+    ctx.drawImage(img, (W - img.width * scale) / 2, (H - img.height * scale) / 2, img.width * scale, img.height * scale);
     ctx.restore();
   }
   const cx = W / 2;
   ctx.textAlign = "center";
   ctx.font = "700 22px sans-serif";
-  ctx.fillStyle = "#D9D4C4";
-  ctx.fillText((data.date || "").toUpperCase(), cx, 90);
-  ctx.font = "800 26px sans-serif";
-  ctx.fillStyle = "#D4A017";
-  ctx.fillText("BEST CLIMB TODAY", cx, 168);
-  ctx.font = "800 42px sans-serif";
-  ctx.fillStyle = "#FBFAF6";
-  drawWrappedText(ctx, data.bestClimbLabel || "", cx, 222, W - 120, 50, "center");
-  ctx.font = "700 20px sans-serif";
-  ctx.fillStyle = "#D9D4C4";
-  ctx.fillText("TOTAL CLIMBS", cx, 400);
-  ctx.font = "800 88px sans-serif";
-  ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(String(data.totalClimbs || 0), cx, 480);
-  ctx.font = "600 20px sans-serif";
-  ctx.fillStyle = "#D9D4C4";
-  ctx.fillText(data.totalMinutes > 0 ? `${formatDuration(data.totalMinutes)} total time` : "", cx, 514);
-  const breakdown = (data.byGrade || []).slice(0, 5);
-  if (breakdown.length > 0) {
-    let y = 570;
-    breakdown.forEach((item) => {
-      ctx.textAlign = "left";
-      ctx.beginPath();
-      ctx.arc(cx - 150, y - 7, 8, 0, Math.PI * 2);
-      ctx.fillStyle = DAY_TYPE_COLORS[item.type] || "#8A8578";
-      ctx.fill();
-      ctx.font = "700 22px sans-serif";
-      ctx.fillStyle = "#FBFAF6";
-      ctx.fillText(`${item.label} \xD7${item.count}`, cx - 128, y);
-      y += 38;
-    });
-    ctx.textAlign = "center";
-  }
-  ctx.font = "700 26px sans-serif";
-  ctx.fillStyle = "#FBFAF6";
-  ctx.fillText(data.name || "", cx, H - 76);
-  ctx.font = "500 19px sans-serif";
-  ctx.fillStyle = "#8A8578";
-  ctx.fillText(data.place || "", cx, H - 44);
-  ctx.textAlign = "left";
-}
-function drawDaySummaryGrid(ctx, W, H, data) {
-  ctx.fillStyle = "#22241F";
-  ctx.fillRect(0, 0, W, H);
-  const cx = W / 2;
-  ctx.textAlign = "center";
-  ctx.font = "700 20px sans-serif";
-  ctx.fillStyle = "#8A8578";
-  ctx.fillText((data.date || "").toUpperCase(), cx, 70);
-  ctx.font = "800 22px sans-serif";
-  ctx.fillStyle = "#D4A017";
-  ctx.fillText("BEST CLIMB", cx, 130);
-  ctx.font = "800 38px sans-serif";
-  ctx.fillStyle = "#FBFAF6";
-  drawWrappedText(ctx, data.bestClimbLabel || "", cx, 178, W - 100, 44, "center");
-  const boxY = 300, boxH = 150, gap = 16, boxW = (W - 80 - gap) / 2;
-  const drawBox = (x, label, value) => {
-    ctx.fillStyle = "#2E3028";
-    ctx.fillRect(x, boxY, boxW, boxH);
-    ctx.font = "700 15px sans-serif";
-    ctx.fillStyle = "#8A8578";
-    ctx.fillText(label.toUpperCase(), x + boxW / 2, boxY + 38);
-    ctx.font = "800 46px sans-serif";
-    ctx.fillStyle = "#FBFAF6";
-    ctx.fillText(value, x + boxW / 2, boxY + 100);
-  };
-  drawBox(40, "Total Climbs", String(data.totalClimbs || 0));
-  drawBox(40 + boxW + gap, "Total Time", formatDuration(data.totalMinutes) || "0min");
-  const breakdown = (data.byGrade || []).slice(0, 6);
-  let y = boxY + boxH + 60;
-  ctx.font = "700 22px sans-serif";
-  breakdown.forEach((item) => {
-    ctx.fillStyle = DAY_TYPE_COLORS[item.type] || "#8A8578";
-    ctx.fillText(`${item.label}  \xD7${item.count}`, cx, y);
-    y += 38;
-  });
-  ctx.font = "700 24px sans-serif";
-  ctx.fillStyle = "#FBFAF6";
-  ctx.fillText(data.name || "", cx, H - 70);
-  ctx.font = "500 18px sans-serif";
-  ctx.fillStyle = "#8A8578";
-  ctx.fillText(data.place || "", cx, H - 40);
-  ctx.textAlign = "left";
-}
-function drawDaySummaryMinimal(ctx, W, H, data) {
-  ctx.fillStyle = data.accentColor || "#6B4C93";
-  ctx.fillRect(0, 0, W, H);
-  const cx = W / 2;
-  ctx.textAlign = "center";
-  ctx.font = "700 22px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.8)";
-  ctx.fillText((data.date || "").toUpperCase(), cx, 110);
-  ctx.font = "800 190px sans-serif";
+  ctx.fillText((data.date || "").toUpperCase(), cx, 96);
+  ctx.font = "800 24px sans-serif";
+  ctx.fillStyle = "#D4A017";
+  ctx.fillText("BEST CLIMB", cx, 206);
   ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(String(data.totalClimbs || 0), cx, 340);
-  ctx.font = "700 30px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.fillText("CLIMBS TODAY", cx, 390);
-  ctx.font = "600 24px sans-serif";
+  const title = data.bestTitle || data.bestClimbLabel || "";
+  clFitText(ctx, title, W - 110, 60, 30, 800);
+  ctx.fillText(title, cx, 276);
+  ctx.font = "600 28px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText(data.totalMinutes > 0 ? `${formatDuration(data.totalMinutes)} climbed` : "", cx, 440);
-  ctx.font = "700 22px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText("BEST", cx, 530);
-  ctx.font = "800 36px sans-serif";
+  ctx.fillText(clBestLine(data), cx, 324);
+  clDrawStatBoxes(ctx, clDayStats(data), 50, 390, W - 100, 190);
+  ctx.textAlign = "center";
+  ctx.font = "700 20px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillText("BY GRADE", cx, 656);
+  clDrawChips(ctx, clDayChipItems(data), cx, 684, W - 100, { maxRows: 3, h: 54, font: "700 26px sans-serif" });
+  ctx.textAlign = "center";
+  ctx.font = "700 28px sans-serif";
   ctx.fillStyle = "#FFFFFF";
-  drawWrappedText(ctx, data.bestClimbLabel || "", cx, 574, W - 120, 42, "center");
+  ctx.fillText(data.name || "", cx, H - 80);
+  ctx.font = "500 20px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fillText(`${data.place ? data.place + "  \xB7  " : ""}CHALKLINE`, cx, H - 46);
+  ctx.textAlign = "left";
+}
+function drawDaySummaryGrid(ctx, W, H, data, img) {
+  ctx.fillStyle = "#F4F1E8";
+  ctx.fillRect(0, 0, W, H);
+  const px = 40, pw = W - 80, ph = 440;
+  if (img) {
+    clDrawCover(ctx, img, px, 40, pw, ph, 28);
+  } else {
+    clRoundRect(ctx, px, 40, pw, ph, 28);
+    ctx.fillStyle = data.bestType ? gradeColor(data.bestType, data.bestGrade) : "#8A8578";
+    ctx.fill();
+  }
+  ctx.save();
+  clRoundRect(ctx, px, 40, pw, ph, 28);
+  ctx.clip();
+  const grad = ctx.createLinearGradient(0, 40 + ph - 190, 0, 40 + ph);
+  grad.addColorStop(0, "rgba(0,0,0,0)");
+  grad.addColorStop(1, "rgba(0,0,0,0.78)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(px, 40 + ph - 190, pw, 190);
+  ctx.restore();
+  ctx.font = "800 20px sans-serif";
+  const badge = "BEST CLIMB";
+  const bw = ctx.measureText(badge).width + 36;
+  clRoundRect(ctx, px + 22, 62, bw, 42, 21);
+  ctx.fillStyle = "#D4A017";
+  ctx.fill();
+  ctx.fillStyle = "#FFFFFF";
+  ctx.textAlign = "left";
+  ctx.fillText(badge, px + 40, 90);
+  const title = data.bestTitle || data.bestClimbLabel || "";
+  clFitText(ctx, title, pw - 48, 46, 26, 800);
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(title, px + 26, 40 + ph - 62);
+  ctx.font = "600 24px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  ctx.fillText(clBestLine(data), px + 26, 40 + ph - 26);
+  ctx.font = "700 21px sans-serif";
+  ctx.fillStyle = "#5B5A50";
+  ctx.fillText((data.date || "").toUpperCase(), px, 526);
+  ctx.textAlign = "right";
+  ctx.fillText("CHALKLINE", px + pw, 526);
+  clDrawStatBoxes(ctx, clDayStats(data), px, 552, pw, 150, { fill: "#FFFFFF", stroke: "#D9D4C4", value: "#22241F", label: "#5B5A50" });
+  ctx.textAlign = "center";
+  ctx.font = "700 20px sans-serif";
+  ctx.fillStyle = "#5B5A50";
+  ctx.fillText("BY GRADE", W / 2, 752);
+  clDrawChips(ctx, clDayChipItems(data), W / 2, 774, pw, { fill: "#FFFFFF", text: "#22241F", maxRows: 2, h: 48 });
+  ctx.textAlign = "center";
   ctx.font = "700 26px sans-serif";
+  ctx.fillStyle = "#22241F";
+  ctx.fillText(`${data.name || ""}${data.place ? "  \xB7  " + data.place : ""}`, W / 2, H - 44);
+  ctx.textAlign = "left";
+}
+function drawDaySummaryMinimal(ctx, W, H, data, bgImg) {
+  ctx.clearRect(0, 0, W, H);
+  if (bgImg) {
+    clDrawCover(ctx, bgImg, 0, 0, W, H, 0);
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(0,0,0,0.25)");
+    g.addColorStop(0.5, "rgba(0,0,0,0.35)");
+    g.addColorStop(1, "rgba(0,0,0,0.6)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 16;
+  ctx.shadowOffsetY = 2;
+  const cx = W / 2;
+  ctx.textAlign = "center";
   ctx.fillStyle = "#FFFFFF";
-  ctx.fillText(data.name || "", cx, H - 76);
-  ctx.font = "500 19px sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.75)";
-  ctx.fillText(data.place || "", cx, H - 44);
+  ctx.font = "700 24px sans-serif";
+  ctx.fillText((data.date || "").toUpperCase(), cx, 96);
+  ctx.font = "800 200px sans-serif";
+  ctx.fillText(String(data.totalClimbs || 0), cx, 318);
+  ctx.font = "800 32px sans-serif";
+  ctx.fillText((data.totalClimbs || 0) === 1 ? "CLIMB" : "CLIMBS", cx, 368);
+  ctx.font = "600 30px sans-serif";
+  ctx.fillText(`${formatDuration(data.totalMinutes) || "0min"}   \xB7   ${data.totalSent || 0} sent`, cx, 424);
+  ctx.font = "700 22px sans-serif";
+  ctx.fillText("BEST CLIMB", cx, 520);
+  const title = data.bestTitle || data.bestClimbLabel || "";
+  clFitText(ctx, title, W - 120, 46, 26, 800);
+  ctx.fillText(title, cx, 572);
+  ctx.font = "600 26px sans-serif";
+  ctx.fillText(clBestLine(data), cx, 612);
+  ctx.restore();
+  clDrawChips(ctx, clDayChipItems(data), cx, 668, W - 100, { fill: "rgba(0,0,0,0.28)", maxRows: 2, h: 48 });
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 14;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "700 28px sans-serif";
+  ctx.fillText(data.name || "", cx, H - 82);
+  ctx.font = "600 20px sans-serif";
+  ctx.fillText("CHALKLINE", cx, H - 48);
+  ctx.restore();
   ctx.textAlign = "left";
 }
 function generateQRDataUrl(text, size) {
@@ -1837,6 +1963,7 @@ function ShareCardModal({ data, onClose }) {
   const isProfile = data.variant === "profile";
   const isToday = data.variant === "today";
   const [design, setDesign] = useState(isProfile ? "blurred" : isToday ? "photo" : "badge");
+  const [customBg, setCustomBg] = useState(null);
   useEffect(() => {
     if (!data.username || !navigator.clipboard) return;
     const link = `${window.location.origin}${window.location.pathname}?u=${encodeURIComponent(data.username)}`;
@@ -1876,16 +2003,17 @@ function ShareCardModal({ data, onClose }) {
     }
     if (isToday) {
       const renderDay = (img2) => {
-        if (design === "grid") drawDaySummaryGrid(ctx, W, H, data);
-        else if (design === "minimal") drawDaySummaryMinimal(ctx, W, H, data);
+        if (design === "grid") drawDaySummaryGrid(ctx, W, H, data, img2);
+        else if (design === "minimal") drawDaySummaryMinimal(ctx, W, H, data, img2);
         else drawDaySummaryPhoto(ctx, W, H, data, img2);
         finish();
       };
-      if (data.photo && design === "photo") {
+      const src = design === "minimal" ? customBg : design === "grid" ? data.bestPhoto : data.bestPhoto || data.photo;
+      if (src) {
         const img = new Image();
         img.onload = () => renderDay(img);
         img.onerror = () => renderDay(null);
-        img.src = data.photo;
+        img.src = src;
       } else {
         renderDay(null);
       }
@@ -1905,7 +2033,7 @@ function ShareCardModal({ data, onClose }) {
     } else {
       render(null);
     }
-  }, [data, design]);
+  }, [data, design, customBg]);
   const download = async () => {
     try {
       const res = await fetch(imgUrl);
@@ -1942,7 +2070,7 @@ function ShareCardModal({ data, onClose }) {
     } catch {
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), copied && /* @__PURE__ */ React.createElement("p", { className: "cl-copied-toast" }, "Link copied to clipboard"), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, (isProfile ? NAME_TAG_DESIGNS : isToday ? DAY_DESIGNS : SHARE_DESIGNS).map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), copied && /* @__PURE__ */ React.createElement("p", { className: "cl-copied-toast" }, "Link copied to clipboard"), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-pill-row", style: { justifyContent: "center", marginBottom: 10 } }, (isProfile ? NAME_TAG_DESIGNS : isToday ? DAY_DESIGNS : SHARE_DESIGNS).map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-pill active" : "cl-pill", onClick: () => setDesign(d.id) }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: isToday && design === "minimal" && !customBg ? "cl-share-preview cl-share-transparent" : "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), isToday && design === "minimal" && /* @__PURE__ */ React.createElement("div", { className: "cl-bg-options" }, /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { margin: "0 0 8px" } }, customBg ? "Using your photo as the background." : "Transparent PNG \u2014 place it over any photo or story."), /* @__PURE__ */ React.createElement("div", { className: "cl-bg-buttons" }, /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", id: "cl-card-bg", className: "cl-file-hidden", onChange: async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setCustomBg(await resizeImage(f, 1200, 0.85)); e.target.value = ""; } }), /* @__PURE__ */ React.createElement("label", { htmlFor: "cl-card-bg", className: "cl-bg-btn" }, /* @__PURE__ */ React.createElement(Images, { size: 16 }), customBg ? " Change photo" : " Add my photo"), customBg && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => setCustomBg(null) }, "Transparent"))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
 }
 function GuestProfileView({ username, onGoToLogin }) {
   const [profile, setProfile] = useState(null);
@@ -2226,13 +2354,13 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
     (l) => (query.trim() === "" || (l.title || "").toLowerCase().includes(query.toLowerCase()) || (l.gym || "").toLowerCase().includes(query.toLowerCase())) && (l.kind !== "climb" || statusFilter === "all" || logHasStatus(l, statusFilter)) && (l.kind !== "climb" || typeFilter === "all" || logHasType(l, typeFilter))
   ).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
   const recordGroups = view === "records" ? groupRecordsByDay(filteredLogs.filter((l) => l.kind === "climb")) : [];
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, /* @__PURE__ */ React.createElement("div", { className: "cl-badge" }, /* @__PURE__ */ React.createElement("div", { className: "cl-badge-top" }, /* @__PURE__ */ React.createElement(Avatar, { name: profile.name, photo: profile.photo, size: 56 }), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-id" }, /* @__PURE__ */ React.createElement("div", { className: "cl-name-row" }, /* @__PURE__ */ React.createElement("h2", null, profile.name), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onOpenQR, title: "My QR code" }, /* @__PURE__ */ React.createElement(QrCode, { size: 16 }))), /* @__PURE__ */ React.createElement("p", { className: "cl-sub cl-nowrap" }, profile.since ? `Since ${(/* @__PURE__ */ new Date(profile.since + "-01")).toLocaleDateString(void 0, { month: "short", year: "2-digit" })} \xB7 ${climbingDuration(profile.since)}` : "Since \u2014"), /* @__PURE__ */ React.createElement("p", { className: "cl-id-text" }, "@", profile.username || profile.slug.slice(0, 8))), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onShareProfile, title: "Share your tag" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onOpenSettings, title: "Settings" }, /* @__PURE__ */ React.createElement(Settings, { size: 18 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-identity-stats" }, /* @__PURE__ */ React.createElement("div", { className: "cl-id-stat" }, /* @__PURE__ */ React.createElement("b", null, climbLogs.length), /* @__PURE__ */ React.createElement("span", null, "posts")), /* @__PURE__ */ React.createElement("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "followers" ? null : "followers") }, /* @__PURE__ */ React.createElement("b", null, followerSlugs.length), /* @__PURE__ */ React.createElement("span", null, "followers")), /* @__PURE__ */ React.createElement("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "following" ? null : "following") }, /* @__PURE__ */ React.createElement("b", null, followingSlugs.length), /* @__PURE__ */ React.createElement("span", null, "following"))), showFollowers && /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, (showFollowers === "followers" ? followerSlugs : followingSlugs).length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nobody yet."), (showFollowers === "followers" ? followerSlugs : followingSlugs).map((s) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, /* @__PURE__ */ React.createElement("div", { className: "cl-badge" }, /* @__PURE__ */ React.createElement("div", { className: "cl-badge-top" }, /* @__PURE__ */ React.createElement(Avatar, { name: profile.name, photo: profile.photo, size: 56 }), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-id" }, /* @__PURE__ */ React.createElement("div", { className: "cl-name-row" }, /* @__PURE__ */ React.createElement("h2", { title: profile.name }, profile.name)), /* @__PURE__ */ React.createElement("p", { className: "cl-sub cl-nowrap" }, profile.since ? `Since ${(/* @__PURE__ */ new Date(profile.since + "-01")).toLocaleDateString(void 0, { month: "short", year: "2-digit" })} \xB7 ${climbingDuration(profile.since)}` : "Since \u2014"), /* @__PURE__ */ React.createElement("p", { className: "cl-id-text" }, "@", profile.username || profile.slug.slice(0, 8))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-badge-action", onClick: onOpenQR, "aria-label": "My QR code" }, /* @__PURE__ */ React.createElement(QrCode, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: "cl-badge-action", onClick: onShareProfile, "aria-label": "Share your tag" }, /* @__PURE__ */ React.createElement(Share2, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: "cl-badge-action", onClick: onOpenSettings, "aria-label": "Settings" }, /* @__PURE__ */ React.createElement(Settings, { size: 18 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-identity-stats" }, /* @__PURE__ */ React.createElement("div", { className: "cl-id-stat" }, /* @__PURE__ */ React.createElement("b", null, climbLogs.length), /* @__PURE__ */ React.createElement("span", null, "posts")), /* @__PURE__ */ React.createElement("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "followers" ? null : "followers") }, /* @__PURE__ */ React.createElement("b", null, followerSlugs.length), /* @__PURE__ */ React.createElement("span", null, "followers")), /* @__PURE__ */ React.createElement("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "following" ? null : "following") }, /* @__PURE__ */ React.createElement("b", null, followingSlugs.length), /* @__PURE__ */ React.createElement("span", null, "following"))), showFollowers && /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, (showFollowers === "followers" ? followerSlugs : followingSlugs).length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nobody yet."), (showFollowers === "followers" ? followerSlugs : followingSlugs).map((s) => {
     const p = allProfiles[s];
     return p ? /* @__PURE__ */ React.createElement("button", { className: "cl-crew-card", key: s, onClick: () => onOpenProfile(s), style: { textAlign: "left", cursor: "pointer", border: "1px solid var(--line)" } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 30 }), /* @__PURE__ */ React.createElement("div", { className: "cl-crew-name" }, p.name)) : null;
-  })), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row" }, /* @__PURE__ */ React.createElement(GradeChip, { type: "boulder", grade: boulderShown }), /* @__PURE__ */ React.createElement(GradeChip, { type: "toprope", grade: routeShown, label: "Route" })), profile.qualifications && profile.qualifications.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => {
+  })), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row" }, boulderShown && boulderShown !== "NA" && /* @__PURE__ */ React.createElement(GradeChip, { type: "boulder", grade: boulderShown }), routeShown && routeShown !== "NA" && /* @__PURE__ */ React.createElement(GradeChip, { type: "toprope", grade: routeShown, label: "Route" })), profile.qualifications && profile.qualifications.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => {
     const Ic = QUALIFICATION_ICONS[q] || GraduationCap;
     return /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill cl-qual-pill", key: i }, /* @__PURE__ */ React.createElement(Ic, { size: 11 }), " ", q);
-  })), profile.gear && profile.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-toggles" }, /* @__PURE__ */ React.createElement("div", { className: "cl-training-stats" }, /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat" }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 12 }), " ", stats.totalSent, " sent"), trackedTypes.map((t) => {
+  })), profile.gear && profile.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-toggles" }, /* @__PURE__ */ React.createElement("div", { className: "cl-training-stats" }, /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat" }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 15 }), /* @__PURE__ */ React.createElement("b", null, stats.totalSent), " sent"), trackedTypes.map((t) => {
     const count = stats[`${t}Count`];
     const mins = stats.minutesByType[t];
     let val;
@@ -2240,7 +2368,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
     else if (statMetric === "hours") val = formatDuration(mins) || "0min";
     else val = `${count} \xB7 ${formatDuration(mins) || "0min"}`;
     const Icon = TYPE_ICONS[t];
-    return /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat", key: t }, /* @__PURE__ */ React.createElement(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", val);
+    return /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat", key: t }, /* @__PURE__ */ React.createElement(Icon, { size: 15 }), " ", TYPE_LABELS[t], " ", /* @__PURE__ */ React.createElement("b", null, val));
   })), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowBadges((v) => !v) }, /* @__PURE__ */ React.createElement(Award, { size: 14 }), " ", earnedCount, "/", badges.length, " badges"), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowCharts((v) => !v) }, /* @__PURE__ */ React.createElement(TrendingUp, { size: 14 }), " Progress")), showBadges && /* @__PURE__ */ React.createElement(BadgesGrid, { stats, onShareBadge }), showCharts && /* @__PURE__ */ React.createElement(ProgressCharts, { mine: climbLogs })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("posts"), role: "tab", "aria-selected": view === "posts" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "saved" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("saved"), role: "tab", "aria-selected": view === "saved" }, "Saved")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: "cl-tabbar-icon", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list"), "aria-label": logViewMode === "list" ? "Show as grid" : "Show as list" }, logViewMode === "list" ? /* @__PURE__ */ React.createElement(LayoutGrid, { size: 18 }) : /* @__PURE__ */ React.createElement(ListIcon, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showFilters ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowFilters((v) => !v), "aria-label": "Filter" }, /* @__PURE__ */ React.createElement(Filter, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareDay(group.ts), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
@@ -2728,7 +2856,13 @@ function ChalklineApp() {
       place: profiles[me].mainGym || "",
       bestClimbLabel: d.bestClimbLabel || (d.isToday ? "No climbs yet today" : "No climbs logged that day"),
       totalClimbs: d.totalClimbs,
+      totalSent: d.totalSent,
       totalMinutes: d.totalMinutes,
+      bestTitle: d.best ? d.best.entry.title || "Untitled" : "",
+      bestType: d.best ? d.best.type : null,
+      bestGrade: d.best ? d.best.grade : null,
+      bestSent: d.best ? d.best.sent : false,
+      bestPhoto: d.best && d.best.entry.photo || null,
       byType: d.typeBreakdown,
       byGrade: d.gradeBreakdown,
       photo: d.best && d.best.entry.photo || profiles[me].photo,
@@ -3018,16 +3152,21 @@ function ChalklineApp() {
 
         .cl-badge { background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 16px; }
         .cl-badge-top { display: flex; align-items: center; gap: 12px; }
-        .cl-badge-id { flex: 1; }
-        .cl-badge-id h2 { font-size: 22px; }
+        .cl-badge-top { align-items: flex-start; }
+        .cl-badge-id { flex: 1; min-width: 0; }
+        .cl-badge-id h2 { font-size: 22px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cl-badge-actions { display: flex; flex-shrink: 0; background: var(--bg); border-radius: 12px; padding: 2px; }
+        .cl-badge-action { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border: none; background: none; border-radius: 10px; color: var(--ink); cursor: pointer; }
+        .cl-badge-action:active { background: var(--line); }
         .cl-name-row { display: flex; align-items: center; gap: 6px; }
         .cl-badge-toggles { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
         .cl-identity-stats { display: flex; gap: 18px; margin-top: 10px; }
         .cl-id-stat { display: flex; flex-direction: column; align-items: center; background: none; border: none; cursor: default; font-family: inherit; }
         .cl-id-stat b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
         .cl-id-stat span { font-size: 11px; color: var(--ink-soft); }
-        .cl-training-stats { display: flex; gap: 10px; flex-wrap: wrap; width: 100%; margin-bottom: 4px; }
-        .cl-training-stat { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--ink-soft); }
+        .cl-training-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; width: 100%; margin: 4px 0 8px; }
+        .cl-training-stat { display: flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink-soft); background: var(--bg); border-radius: 10px; padding: 9px 11px; }
+        .cl-training-stat b { color: var(--ink); font-weight: 700; margin-left: auto; }
 
         .cl-chip-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
         .cl-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid; border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
@@ -3260,7 +3399,7 @@ function ChalklineApp() {
         .cl-record-detail-gym { flex: 1; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-soft); }
         .cl-day-group { display: flex; flex-direction: column; gap: 10px; }
         .cl-day-header { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 0 0; }
-        .cl-day-header-row { display: flex; align-items: center; justify-content: space-between; }
+        .cl-day-header-row { display: flex; align-items: center; justify-content: space-between; margin: -4px 0 -2px; }
         .cl-day-header-row .cl-day-header { margin: 4px 0; }
         .cl-tabbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); margin: 6px 0 8px; }
         .cl-tabs { display: flex; gap: 2px; }
@@ -3296,10 +3435,14 @@ function ChalklineApp() {
         .cl-record-grid-photo { height: 170px; }
         .cl-record-grid-title { font-size: 14px; }
         .cl-record-grid-info { padding: 10px 12px 12px; }
+        .cl-share-transparent { background-color: #fff; background-image: linear-gradient(45deg, #ddd 25%, transparent 25%), linear-gradient(-45deg, #ddd 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ddd 75%), linear-gradient(-45deg, transparent 75%, #ddd 75%); background-size: 22px 22px; background-position: 0 0, 0 11px, 11px -11px, -11px 0; }
+        .cl-bg-options { margin: 4px auto 6px; max-width: 340px; }
+        .cl-bg-buttons { display: flex; gap: 8px; justify-content: center; }
+        .cl-bg-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
         .cl-overlay.cl-layer-day { z-index: 105; }
         .cl-overlay.cl-layer-log { z-index: 110; }
         .cl-overlay.cl-layer-top { z-index: 120; }
-        .cl-day-header-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 8px 4px 8px 0; min-height: 40px; color: var(--ink-soft); cursor: pointer; font-family: inherit; }
+        .cl-day-header-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 2px 4px 2px 0; min-height: 36px; color: var(--ink-soft); cursor: pointer; font-family: inherit; }
         .cl-day-header-btn .cl-day-header { margin: 0; }
         .cl-tools-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
         .cl-segmented { flex: 1; display: flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
