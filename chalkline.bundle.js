@@ -2216,17 +2216,7 @@ function ShareCardModal({ data, onClose }) {
     const W = 800, H = 1e3;
     canvas.width = W;
     canvas.height = H;
-    const finish = () => {
-      ctx.save();
-      ctx.globalCompositeOperation = "destination-in";
-      ctx.filter = "none";
-      ctx.shadowColor = "transparent";
-      clRoundRect(ctx, 0, 0, W, H, 44);
-      ctx.fillStyle = "#000";
-      ctx.fill();
-      ctx.restore();
-      setImgUrl(canvas.toDataURL("image/png"));
-    };
+    const finish = () => setImgUrl(canvas.toDataURL("image/png"));
     if (isProfile) {
       const link = `${window.location.origin}${window.location.pathname}?u=${encodeURIComponent(data.username || "")}`;
       const loadPhoto = data.photo ? new Promise((resolve) => {
@@ -3878,7 +3868,7 @@ function ChalklineApp() {
         .cl-point-marker.end { background: #C4501F; }
         .cl-point-marker.fall { background: #D4A017; }
 
-        .cl-share-preview { width: 100%; max-width: 340px; border-radius: 5.5% / 4.4%; margin: 10px 0; box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
+        .cl-share-preview { width: 100%; max-width: 340px; border-radius: 0; margin: 10px 0; box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
         .cl-share-download-btn { display: inline-flex; margin: 10px auto 0; width: auto !important; padding: 6px 14px !important; font-size: 12px !important; }
         .cl-danger-zone { margin-top: 28px; padding: 14px; border-radius: 12px; background: rgba(196,80,31,0.08); border: 1px solid rgba(196,80,31,0.35); }
         .cl-btn-danger { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; border: none; border-radius: 9px; background: var(--accent2); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
