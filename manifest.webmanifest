@@ -1,0 +1,16 @@
+{
+  "name": "Chalkline — Climbing Log",
+  "short_name": "Chalkline",
+  "description": "Log every climb, run a live session timer and share your sends.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E7E3D8",
+  "theme_color": "#E7E3D8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
