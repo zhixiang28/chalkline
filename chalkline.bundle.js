@@ -53,6 +53,7 @@ import {
   AlertTriangle,
   Images,
   LayoutGrid,
+  Pencil,
   List as ListIcon
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Cell, AreaChart, Area, CartesianGrid } from "recharts";
@@ -794,15 +795,15 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const [title, setTitle] = useState(initial.title || "");
   const [gym, setGym] = useState(initial.gym || GYM_OPTIONS[0]);
   const [climbRows, setClimbRows] = useState(initial.climbs || [{ type: "boulder", grade: "VB", status: "trying" }]);
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(initial.note || "");
   const [photo, setPhoto] = useState(initial.photo || null);
   const [points, setPoints] = useState(() => normalizePoints(initial.points));
-  const [technique, setTechnique] = useState([]);
-  const [satisfaction, setSatisfaction] = useState(0);
-  const [hours, setHours] = useState("");
-  const [minutes, setMinutes] = useState("");
+  const [technique, setTechnique] = useState(initial.technique || []);
+  const [satisfaction, setSatisfaction] = useState(initial.satisfaction || 0);
+  const [hours, setHours] = useState(initial.minutes ? String(Math.floor(initial.minutes / 60)) : "");
+  const [minutes, setMinutes] = useState(initial.minutes ? String(initial.minutes % 60) : "");
   const [entryDate, setEntryDate] = useState(() => {
-    const d = /* @__PURE__ */ new Date();
+    const d = initial.timestamp ? new Date(initial.timestamp) : /* @__PURE__ */ new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
   const [privacy, setPrivacy] = useState(initial.privacy || "public");
@@ -811,6 +812,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const fileRef = useRef();
   const locked = !!initial.lockClimb;
   const showGymTitle = !initial.lockPost;
+  const showTitleGym = showGymTitle || !!initial.editLog;
   const onFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -821,7 +823,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const addRow = () => setClimbRows((rows) => [...rows, { type: "boulder", grade: "VB", status: "trying" }]);
   const removeRow = (i) => setClimbRows((rows) => rows.filter((_, idx) => idx !== i));
   const submit = async () => {
-    if (showGymTitle && postType === "project" && !title.trim()) {
+    if (showTitleGym && postType === "project" && !title.trim()) {
       setError("Give this project a name so you and your crew can find it again.");
       return;
     }
@@ -847,7 +849,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
     });
     setSaving(false);
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-card cl-form-card" }, showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Post type"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: postType === "project" ? "cl-toggle active" : "cl-toggle", onClick: () => setPostType("project") }, /* @__PURE__ */ React.createElement(Layers, { size: 14 }), " One wall / project"), /* @__PURE__ */ React.createElement("button", { className: postType === "day" ? "cl-toggle active" : "cl-toggle", onClick: () => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-card cl-form-card" }, showTitleGym && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, showGymTitle && /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Post type"), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: postType === "project" ? "cl-toggle active" : "cl-toggle", onClick: () => setPostType("project") }, /* @__PURE__ */ React.createElement(Layers, { size: 14 }), " One wall / project"), /* @__PURE__ */ React.createElement("button", { className: postType === "day" ? "cl-toggle active" : "cl-toggle", onClick: () => {
     setPostType("day");
     if (climbRows.length < 1) addRow();
   } }, /* @__PURE__ */ React.createElement(CalendarRange, { size: 14 }), " Full day log")), postType === "project" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Name this project *"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: title, onChange: (e) => setTitle(e.target.value), placeholder: "e.g. Blue arete by the window" })), postType === "day" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Title (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: title, onChange: (e) => setTitle(e.target.value), placeholder: `Day at ${gym}` })), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Gym or crag"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: gym, onChange: (e) => setGym(e.target.value), list: "cl-gyms" }), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g })))), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, postType === "day" ? "Climbs done" : "Climb"), climbRows.map((c, i) => /* @__PURE__ */ React.createElement(
@@ -1087,8 +1089,9 @@ function DayConclusionModal({ targetDate, logs, me, onClose, onShareDay, onOpenL
 function BottomSheet({ title, message, confirmLabel = "Confirm", danger = false, onConfirm, onCancel }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: onCancel }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, title), message && /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-message" }, message), /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-sheet-btn", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: danger ? "cl-sheet-btn danger" : "cl-sheet-btn primary", onClick: onConfirm }, confirmLabel))));
 }
-function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onShare, onShareToPost }) {
+function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePrivacy, onAddTry, onEditEntry, onLiveLog, onShare, onShareToPost }) {
   const [addingTry, setAddingTry] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const updates = [...entry.updates || []].reverse();
   const isMine = !!me && entry.authorSlug === me;
@@ -1103,7 +1106,13 @@ function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePriva
   } }), entry.photo && /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
     const attemptCount = u.attemptLog ? u.attemptLog.length : 1;
     const success = (u.climbs || []).some((c) => c.status === "sent");
-    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? "Sent" : "Trying")), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1min"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note));
+    if (editingId === u.id) {
+      return /* @__PURE__ */ React.createElement(LogForm, { key: u.id, saveLabel: "Save changes", initial: { editLog: true, lockPost: true, postType: entry.postType, title: entry.title, gym: entry.gym, climbs: (u.climbs || []).map((c) => ({ ...c })), note: u.note, minutes: u.minutes, timestamp: u.timestamp, technique: u.technique, satisfaction: u.satisfaction, formId: `edit-${u.id}`, photo: entry.photo, points: entry.points }, onCancel: () => setEditingId(null), onSave: async (data) => {
+        await onEditEntry(entry.id, u.id, data);
+        setEditingId(null);
+      } });
+    }
+    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8 } }, isMine && onEditEntry && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setEditingId(u.id), title: "Edit this entry", "aria-label": "Edit this entry" }, /* @__PURE__ */ React.createElement(Pencil, { size: 14 })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? "Sent" : "Trying"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1min"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note));
   })), confirm === "delete" && /* @__PURE__ */ React.createElement(BottomSheet, { title: "Delete this log?", message: "This removes the log and every attempt in it. You can't undo this.", confirmLabel: "Delete", danger: true, onCancel: () => setConfirm(null), onConfirm: () => { setConfirm(null); onDelete(entry.id); onClose(); } }), confirm === "privacy" && /* @__PURE__ */ React.createElement(BottomSheet, { title: entry.privacy === "private" ? "Make this log public?" : "Make this log private?", message: entry.privacy === "private" ? "Anyone on Chalkline will be able to see it." : "Only you will be able to see it.", confirmLabel: entry.privacy === "private" ? "Make public" : "Make private", onCancel: () => setConfirm(null), onConfirm: () => { setConfirm(null); onTogglePrivacy(entry.id); } })));
 }
 function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onEnlarge, onShare, onShareToPost, onOpenLogDetail }) {
@@ -3162,6 +3171,31 @@ function ChalklineApp() {
     await safeSet(`log:${logId}`, JSON.stringify(next), true);
     setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
   };
+  const editEntry = async (logId, updateId, data) => {
+    const entry = logs.find((l) => l.id === logId);
+    if (!entry) return;
+    const old = (entry.updates || []).find((u) => u.id === updateId);
+    if (!old) return;
+    const extra = data.extra || {};
+    const pad = (n) => String(n).padStart(2, "0");
+    const od = new Date(old.timestamp);
+    const sameDay = data.entryDate === `${od.getFullYear()}-${pad(od.getMonth() + 1)}-${pad(od.getDate())}`;
+    const ts = sameDay ? old.timestamp : resolveEntryTimestamp(data.entryDate);
+    const { technique: _t, satisfaction: _s, ...rest } = old;
+    const update = { ...rest, timestamp: ts, note: data.note, minutes: data.minutes, climbs: data.climbs, ...extra };
+    const updates = entry.updates.map((u) => u.id === updateId ? update : u);
+    const next = {
+      ...entry,
+      title: data.title || entry.title,
+      gym: data.gym || entry.gym,
+      photo: data.photo || null,
+      points: data.photo ? extra.points || null : null,
+      updates,
+      updatedAt: Math.max(entry.updatedAt || 0, ts)
+    };
+    await safeSet(`log:${logId}`, JSON.stringify(next), true);
+    setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
+  };
   const togglePrivacy = async (logId) => {
     const entry = logs.find((l) => l.id === logId);
     if (!entry) return;
@@ -4030,7 +4064,7 @@ function ChalklineApp() {
       sendMessage,
       onOpenChat: goToChat
     }
-  ), viewingDay && /* @__PURE__ */ React.createElement(DayConclusionModal, { targetDate: viewingDay, logs, me, onClose: () => setViewingDay(null), onShareDay: shareDay, onOpenLogDetail: setViewingLogDetail }), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: logs.find((l) => l.id === viewingLogDetail.id) || viewingLogDetail, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }), me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onLiveLog: (entryArg) => setLiveLogState({ continueEntry: entryArg }), onShare, onShareToPost: (entryArg) => setShowSocialPost({ attachLogId: entryArg.id }) }), viewingSharedPost && /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setViewingSharedPost(null) }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Shared post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
+  ), viewingDay && /* @__PURE__ */ React.createElement(DayConclusionModal, { targetDate: viewingDay, logs, me, onClose: () => setViewingDay(null), onShareDay: shareDay, onOpenLogDetail: setViewingLogDetail }), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: logs.find((l) => l.id === viewingLogDetail.id) || viewingLogDetail, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }), me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onEditEntry: editEntry, onLiveLog: (entryArg) => setLiveLogState({ continueEntry: entryArg }), onShare, onShareToPost: (entryArg) => setShowSocialPost({ attachLogId: entryArg.id }) }), viewingSharedPost && /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setViewingSharedPost(null) }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Shared post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
     PostCard,
     {
       entry: viewingSharedPost,
