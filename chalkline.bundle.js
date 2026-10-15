@@ -830,7 +830,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
     setError("");
     setSaving(true);
     const totalMinutes = (Number(hours) || 0) * 60 + (Number(minutes) || 0);
-    const hasPoints = points.start.length > 0 || points.end.length > 0;
+    const hasPoints = points.start.length > 0 || points.end.length > 0 || points.fall.length > 0;
     const extra = {};
     if (hasPoints) extra.points = points;
     if (technique.length > 0) extra.technique = technique;
@@ -1308,15 +1308,15 @@ function PhotoPointPicker({ photo, points, onChange }) {
     const x = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
     const y = Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100));
     const current = safePoints[mode];
-    if (current.length >= 2) return;
+    if (current.length >= (mode === "fall" ? 9 : 2)) return;
     onChange({ ...safePoints, [mode]: [...current, { x, y }] });
   };
   const removePoint = (type, idx, e) => {
     e.stopPropagation();
     onChange({ ...safePoints, [type]: safePoints[type].filter((_, i) => i !== idx) });
   };
-  const anyPoints = safePoints.start.length > 0 || safePoints.end.length > 0;
-  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "start" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("start") }, "Mark start (", safePoints.start.length, "/2)"), /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "end" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("end") }, "Mark end (", safePoints.end.length, "/2)"), anyPoints && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost", style: { flex: "0 0 auto" }, onClick: () => onChange({ start: [], end: [] }) }, /* @__PURE__ */ React.createElement(X, { size: 13 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-point-photo-wrap", onClick: handleClick }, /* @__PURE__ */ React.createElement("img", { ref: imgRef, src: photo, alt: "mark climb points", className: "cl-point-photo" }), safePoints.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("start", i, e) }, "S")), safePoints.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("end", i, e) }, "E"))), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Optional \u2014 tap the photo to mark where you start and finish the climb."));
+  const anyPoints = safePoints.start.length > 0 || safePoints.end.length > 0 || safePoints.fall.length > 0;
+  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "start" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("start") }, "Mark start (", safePoints.start.length, "/2)"), /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "end" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("end") }, "Mark end (", safePoints.end.length, "/2)"), /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "fall" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("fall") }, "Add 1, 2, 3 (", safePoints.fall.length, ")"), anyPoints && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost", style: { flex: "0 0 auto" }, onClick: () => onChange({ start: [], end: [], fall: [] }) }, /* @__PURE__ */ React.createElement(X, { size: 13 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-point-photo-wrap", onClick: handleClick }, /* @__PURE__ */ React.createElement("img", { ref: imgRef, src: photo, alt: "mark climb points", className: "cl-point-photo" }), safePoints.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("start", i, e) }, "S")), safePoints.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("end", i, e) }, "E")), safePoints.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("fall", i, e) }, i + 1))), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Optional \u2014 tap the photo to mark where you start and finish. Use \"Add 1, 2, 3\" to number stops along the route; tap a marker to remove it."));
 }
 function StarRating({ value, onChange }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-star-row" }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement("button", { key: n, type: "button", className: "cl-star-btn", onClick: () => onChange(n) }, /* @__PURE__ */ React.createElement(Star, { size: 24, fill: n <= value ? "#D4A017" : "none", color: n <= value ? "#D4A017" : "var(--line)" }))));
@@ -1880,6 +1880,7 @@ function clDayModel(d) {
     ],
     chipsTitle: "BY GRADE",
     chips: (d.byGrade || []).map((g) => ({ prefix: g.type === "boulder" ? "" : g.type === "toprope" ? "TR " : g.type === "lead" ? "Lead " : "", text: `${clGradeText(g.type, g.grade)}  \xD7${g.count}`, color: gradeColor(g.type, g.grade) })),
+    points: d.points,
     hero: { value: d.totalClimbs || 0, label: (d.totalClimbs || 0) === 1 ? "CLIMB" : "CLIMBS" },
     heroLine: `${formatDuration(d.totalMinutes) || "0min"}   \xB7   ${d.totalSent || 0} sent`,
     name: d.name,
@@ -1903,6 +1904,7 @@ function clLogModel(d) {
     ],
     chipsTitle: (d.techniques || []).length ? "TECHNIQUE" : "",
     chips: (d.techniques || []).map((t) => ({ prefix: "", text: t, color: null })),
+    points: d.points,
     hero: { value: d.bestSent ? "SENT" : g || "\u2014", label: d.bestSent ? gradeLabel.toUpperCase() : "PROJECT" },
     clearKicker: "",
     clearSubline: d.gym || "",
@@ -1912,17 +1914,66 @@ function clLogModel(d) {
     fallbackColor: d.bestType ? gradeColor(d.bestType, d.bestGrade) : "#8A8578"
   };
 }
+function clDrawRouteLine(ctx, rx, ry, rw, rh, img, points, k) {
+  const pts = normalizePoints(points);
+  if (!img || pts.start.length === 0 || pts.end.length === 0) return;
+  const sc = Math.max(rw / img.width, rh / img.height);
+  const sw = img.width * sc, sh = img.height * sc;
+  const ox = rx + (rw - sw) / 2, oy = ry + (rh - sh) / 2;
+  const clampP = (p) => ({ x: Math.min(rx + rw - 14 * k, Math.max(rx + 14 * k, ox + p.x / 100 * sw)), y: Math.min(ry + rh - 14 * k, Math.max(ry + 14 * k, oy + p.y / 100 * sh)) });
+  const falls = pts.fall.map(clampP);
+  const path = [...pts.start.map(clampP), ...falls, ...pts.end.map(clampP)];
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length - 1; i++) {
+    const mx = (path[i].x + path[i + 1].x) / 2, my = (path[i].y + path[i + 1].y) / 2;
+    ctx.quadraticCurveTo(path[i].x, path[i].y, mx, my);
+  }
+  const last = path[path.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.shadowColor = "rgba(255,75,31,0.9)";
+  ctx.shadowBlur = 16 * k;
+  ctx.strokeStyle = "#FF4B1F";
+  ctx.lineWidth = 7 * k;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  const dot = (p, label, color) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 14 * k, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 3 * k;
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.stroke();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = `800 ${14 * k}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(label, p.x, p.y + 5 * k);
+  };
+  pts.start.map(clampP).forEach((p) => dot(p, "S", "#6B8E4E"));
+  falls.forEach((p, i) => dot(p, String(i + 1), "#D4A017"));
+  pts.end.map(clampP).forEach((p) => dot(p, "E", "#C4501F"));
+  ctx.restore();
+}
 function drawSummaryOverlay(ctx, W, H, m, img) {
   const cx = W / 2;
+  const pts = normalizePoints(m.points);
+  const hasRoute = !!img && pts.start.length > 0 && pts.end.length > 0;
   ctx.fillStyle = m.fallbackColor || "#2E3028";
   ctx.fillRect(0, 0, W, H);
   if (img) {
-    clDrawCover(ctx, img, 0, 0, W, H, 0);
+    ctx.save();
+    ctx.filter = hasRoute ? "blur(22px)" : "none";
+    clDrawCover(ctx, img, -30, -30, W + 60, H + 60, 0);
+    ctx.restore();
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "rgba(0,0,0,0.6)");
-    g.addColorStop(0.35, "rgba(0,0,0,0.3)");
-    g.addColorStop(0.6, "rgba(0,0,0,0.45)");
-    g.addColorStop(1, "rgba(0,0,0,0.75)");
+    g.addColorStop(0, "rgba(0,0,0," + (hasRoute ? 0.6 : 0.6) + ")");
+    g.addColorStop(0.35, "rgba(0,0,0," + (hasRoute ? 0.5 : 0.3) + ")");
+    g.addColorStop(0.6, "rgba(0,0,0," + (hasRoute ? 0.55 : 0.45) + ")");
+    g.addColorStop(1, "rgba(0,0,0,0.78)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }
@@ -1930,25 +1981,60 @@ function drawSummaryOverlay(ctx, W, H, m, img) {
   ctx.shadowColor = "rgba(0,0,0,0.45)";
   ctx.shadowBlur = 14;
   ctx.fillStyle = "rgba(255,255,255,0.92)";
-  clFitText(ctx, "CHALKLINE", W - 100, 104, 50, 900);
-  ctx.fillText("CHALKLINE", cx, 150);
-  ctx.font = "600 28px sans-serif";
-  ctx.fillText(m.place || m.subline || "", cx, 200);
+  ctx.font = "800 56px sans-serif";
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "10px";
+  ctx.fillText("CHALKLINE", cx + 5, 120);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  ctx.font = "600 26px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillText(m.place || m.subline || "", cx, 166);
+  ctx.shadowBlur = 0;
   const rows = (m.stats || []).slice(0, 3);
-  const top = H * 0.5;
-  rows.forEach((st, i) => {
-    const y = top + i * 150;
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "700 40px sans-serif";
-    ctx.fillText(st.label.charAt(0).toUpperCase() + st.label.slice(1), cx, y);
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.font = "500 46px sans-serif";
-    ctx.fillText(String(st.value), cx, y + 54);
-  });
+  if (hasRoute) {
+    const tw = 360, th = 450, tx = (W - tw) / 2, ty = 225;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 30;
+    clRoundRect(ctx, tx, ty, tw, th, 22);
+    ctx.fillStyle = "#000";
+    ctx.fill();
+    ctx.restore();
+    clDrawCover(ctx, img, tx, ty, tw, th, 22);
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    clRoundRect(ctx, tx, ty, tw, th, 22);
+    ctx.fill();
+    clDrawRouteLine(ctx, tx, ty, tw, th, img, m.points, 1);
+    const colW = (W - 100) / Math.max(rows.length, 1);
+    rows.forEach((st, i) => {
+      const x = 50 + colW * i + colW / 2;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 54px sans-serif";
+      ctx.fillText(String(st.value), x, 775);
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.font = "600 22px sans-serif";
+      ctx.fillText(st.label.toUpperCase(), x, 815);
+    });
+  } else {
+    const top = H * 0.5;
+    rows.forEach((st, i) => {
+      const y = top + i * 120;
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 34px sans-serif";
+      ctx.fillText(st.label.charAt(0).toUpperCase() + st.label.slice(1), cx, y);
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "500 44px sans-serif";
+      ctx.fillText(String(st.value), cx, y + 50);
+    });
+  }
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 14;
   ctx.font = "700 24px sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.9)";
-  const foot = [m.name, m.date].filter(Boolean).join("   \u00B7   ");
-  ctx.fillText(foot, cx, H - 44);
+  ctx.textAlign = "center";
+  ctx.fillText([m.name, m.date].filter(Boolean).join("   \u00B7   "), cx, H - 44);
   ctx.shadowBlur = 0;
   ctx.shadowColor = "transparent";
   ctx.textAlign = "left";
