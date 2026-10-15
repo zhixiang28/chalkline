@@ -54,6 +54,8 @@ import {
   Images,
   LayoutGrid,
   Pencil,
+  Menu as MenuIcon,
+  Home as HomeIcon,
   List as ListIcon
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, Cell, AreaChart, Area, CartesianGrid } from "recharts";
@@ -830,7 +832,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
     setError("");
     setSaving(true);
     const totalMinutes = (Number(hours) || 0) * 60 + (Number(minutes) || 0);
-    const hasPoints = points.start.length > 0 || points.end.length > 0;
+    const hasPoints = points.start.length > 0 || points.end.length > 0 || points.fall.length > 0;
     const extra = {};
     if (hasPoints) extra.points = points;
     if (technique.length > 0) extra.technique = technique;
@@ -1029,7 +1031,7 @@ function RecordRow({ entry, onOpen }) {
   const primaryClimb = (best.climbs || [])[0];
   const Icon = primaryClimb ? TYPE_ICONS[primaryClimb.type] : Mountain;
   const iconColor = primaryClimb ? gradeColor(primaryClimb.type, primaryClimb.grade) : "#8A8578";
-  return /* @__PURE__ */ React.createElement("button", { className: "cl-lrow", onClick: () => onOpen(entry) }, entry.photo ? /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-lrow-media" }) : /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-media cl-lrow-media-empty", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 26, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus])), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-mid" }, (best.climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), entry.gym && /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), entry.gym)), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-stats" }, /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement(Clock, { size: 13 }), totals.totalMinutes > 0 ? formatDuration(totals.totalMinutes) : "\u2014"), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement(Repeat, { size: 13 }), totals.totalTries, totals.totalTries === 1 ? " try" : " tries"))));
+  return /* @__PURE__ */ React.createElement("button", { className: "cl-lrow", onClick: () => onOpen(entry) }, entry.photo ? /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-lrow-media" }) : /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-media cl-lrow-media-empty", style: { background: iconColor } }, /* @__PURE__ */ React.createElement(Icon, { size: 26, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("span", { className: `cl-status cl-status-${overallStatus}` }, STATUS_LABELS[overallStatus])), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-mid" }, (best.climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade }))), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-stats cl-lrow-meta" }, [totals.totalMinutes > 0 ? formatDuration(totals.totalMinutes) : null, `${totals.totalTries} ${totals.totalTries === 1 ? "try" : "tries"}`, entry.gym].filter(Boolean).join("  \u00B7  "))));
 }
 function RecordGridItem({ entry, onOpen }) {
   const updates = entry.updates || [];
@@ -1051,10 +1053,12 @@ function computeDaySummary(allLogs, me, targetDate) {
   let totalMinutes = 0, totalClimbs = 0, totalSent = 0;
   const byType = {}, byGrade = {};
   const entries = [];
+  const gymCounts = {};
   mine.forEach((l) => {
     const dayUpdates = (l.updates || []).filter(onDay);
     if (dayUpdates.length === 0) return;
     dayUpdates.forEach((u) => { totalMinutes += Number(u.minutes) || 0; });
+    if (l.gym) gymCounts[l.gym] = (gymCounts[l.gym] || 0) + dayUpdates.length;
     const ws = wallsFromEntry(l, onDay);
     let sentThatDay = false;
     ws.forEach((c) => {
@@ -1077,7 +1081,8 @@ function computeDaySummary(allLogs, me, targetDate) {
   const gradeBreakdown = Object.values(byGrade).sort((a, b) => b.count - a.count || gradeRank(b.type, b.grade) - gradeRank(a.type, a.grade));
   const bestClimbLabel = best ? `${best.entry.title ? best.entry.title + " \u2014 " : ""}${TYPE_LABELS[best.type]} ${best.gradeText}${best.sent ? " \u2014 Sent" : ""}` : "";
   const dateLabel = target.toLocaleDateString(void 0, isToday ? { weekday: "long", month: "short", day: "numeric" } : { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-  return { target, targetStr, isToday, best, bestClimbLabel, totalClimbs, totalSent, totalMinutes, typeBreakdown, gradeBreakdown, entries, dateLabel };
+  const gym = Object.keys(gymCounts).sort((a, b) => gymCounts[b] - gymCounts[a]).slice(0, 2).join(" & ");
+  return { target, targetStr, isToday, gym, best, bestClimbLabel, totalClimbs, totalSent, totalMinutes, typeBreakdown, gradeBreakdown, entries, dateLabel };
 }
 function DayConclusionModal({ targetDate, logs, me, onClose, onShareDay, onOpenLogDetail }) {
   const d = computeDaySummary(logs, me, targetDate);
@@ -1305,15 +1310,15 @@ function PhotoPointPicker({ photo, points, onChange }) {
     const x = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
     const y = Math.max(0, Math.min(100, (e.clientY - rect.top) / rect.height * 100));
     const current = safePoints[mode];
-    if (current.length >= 2) return;
+    if (current.length >= (mode === "fall" ? 9 : 2)) return;
     onChange({ ...safePoints, [mode]: [...current, { x, y }] });
   };
   const removePoint = (type, idx, e) => {
     e.stopPropagation();
     onChange({ ...safePoints, [type]: safePoints[type].filter((_, i) => i !== idx) });
   };
-  const anyPoints = safePoints.start.length > 0 || safePoints.end.length > 0;
-  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "start" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("start") }, "Mark start (", safePoints.start.length, "/2)"), /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "end" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("end") }, "Mark end (", safePoints.end.length, "/2)"), anyPoints && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost", style: { flex: "0 0 auto" }, onClick: () => onChange({ start: [], end: [] }) }, /* @__PURE__ */ React.createElement(X, { size: 13 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-point-photo-wrap", onClick: handleClick }, /* @__PURE__ */ React.createElement("img", { ref: imgRef, src: photo, alt: "mark climb points", className: "cl-point-photo" }), safePoints.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("start", i, e) }, "S")), safePoints.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("end", i, e) }, "E"))), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Optional \u2014 tap the photo to mark where you start and finish the climb."));
+  const anyPoints = safePoints.start.length > 0 || safePoints.end.length > 0 || safePoints.fall.length > 0;
+  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row", style: { marginTop: 10 } }, /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "start" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("start") }, "Mark start (", safePoints.start.length, "/2)"), /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "end" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("end") }, "Mark end (", safePoints.end.length, "/2)"), /* @__PURE__ */ React.createElement("button", { type: "button", className: mode === "fall" ? "cl-toggle active" : "cl-toggle", onClick: () => setMode("fall") }, "Add 1, 2, 3 (", safePoints.fall.length, ")"), anyPoints && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost", style: { flex: "0 0 auto" }, onClick: () => onChange({ start: [], end: [], fall: [] }) }, /* @__PURE__ */ React.createElement(X, { size: 13 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-point-photo-wrap", onClick: handleClick }, /* @__PURE__ */ React.createElement("img", { ref: imgRef, src: photo, alt: "mark climb points", className: "cl-point-photo" }), safePoints.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("start", i, e) }, "S")), safePoints.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("end", i, e) }, "E")), safePoints.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` }, onClick: (e) => removePoint("fall", i, e) }, i + 1))), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Optional \u2014 tap the photo to mark where you start and finish. Use \"Add 1, 2, 3\" to number stops along the route; tap a marker to remove it."));
 }
 function StarRating({ value, onChange }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-star-row" }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement("button", { key: n, type: "button", className: "cl-star-btn", onClick: () => onChange(n) }, /* @__PURE__ */ React.createElement(Star, { size: 24, fill: n <= value ? "#D4A017" : "none", color: n <= value ? "#D4A017" : "var(--line)" }))));
@@ -1741,7 +1746,8 @@ var DAY_TYPE_COLORS = { boulder: "#C4501F", toprope: "#6B8E4E", lead: "#3A4A63",
 var SUMMARY_DESIGNS = [
   { id: "blur", label: "Blurred" },
   { id: "card", label: "Photo card" },
-  { id: "clear", label: "Transparent" }
+  { id: "clear", label: "Transparent" },
+  { id: "strava", label: "Overlay stats" }
 ];
 var LOG_DESIGNS = [...SUMMARY_DESIGNS, { id: "full", label: "Full photo" }];
 var CARD_SWATCHES = [null, "#F4F1E8", "#FFFFFF", "#22241F", "#1F3A5F", "#6B4C93", "#C4501F", "#D4A017"];
@@ -1876,6 +1882,7 @@ function clDayModel(d) {
     ],
     chipsTitle: "BY GRADE",
     chips: (d.byGrade || []).map((g) => ({ prefix: g.type === "boulder" ? "" : g.type === "toprope" ? "TR " : g.type === "lead" ? "Lead " : "", text: `${clGradeText(g.type, g.grade)}  \xD7${g.count}`, color: gradeColor(g.type, g.grade) })),
+    points: d.points,
     hero: { value: d.totalClimbs || 0, label: (d.totalClimbs || 0) === 1 ? "CLIMB" : "CLIMBS" },
     heroLine: `${formatDuration(d.totalMinutes) || "0min"}   \xB7   ${d.totalSent || 0} sent`,
     name: d.name,
@@ -1899,6 +1906,7 @@ function clLogModel(d) {
     ],
     chipsTitle: (d.techniques || []).length ? "TECHNIQUE" : "",
     chips: (d.techniques || []).map((t) => ({ prefix: "", text: t, color: null })),
+    points: d.points,
     hero: { value: d.bestSent ? "SENT" : g || "\u2014", label: d.bestSent ? gradeLabel.toUpperCase() : "PROJECT" },
     clearKicker: "",
     clearSubline: d.gym || "",
@@ -1907,6 +1915,131 @@ function clLogModel(d) {
     place: d.place,
     fallbackColor: d.bestType ? gradeColor(d.bestType, d.bestGrade) : "#8A8578"
   };
+}
+function clDrawRouteLine(ctx, rx, ry, rw, rh, img, points, k) {
+  const pts = normalizePoints(points);
+  if (!img || pts.start.length === 0 || pts.end.length === 0) return;
+  const sc = Math.max(rw / img.width, rh / img.height);
+  const sw = img.width * sc, sh = img.height * sc;
+  const ox = rx + (rw - sw) / 2, oy = ry + (rh - sh) / 2;
+  const clampP = (p) => ({ x: Math.min(rx + rw - 14 * k, Math.max(rx + 14 * k, ox + p.x / 100 * sw)), y: Math.min(ry + rh - 14 * k, Math.max(ry + 14 * k, oy + p.y / 100 * sh)) });
+  const falls = pts.fall.map(clampP);
+  const path = [...pts.start.map(clampP), ...falls, ...pts.end.map(clampP)];
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length - 1; i++) {
+    const mx = (path[i].x + path[i + 1].x) / 2, my = (path[i].y + path[i + 1].y) / 2;
+    ctx.quadraticCurveTo(path[i].x, path[i].y, mx, my);
+  }
+  const last = path[path.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.shadowColor = "rgba(255,75,31,0.9)";
+  ctx.shadowBlur = 16 * k;
+  ctx.strokeStyle = "#FF4B1F";
+  ctx.lineWidth = 7 * k;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  const dot = (p, label, color) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 14 * k, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 3 * k;
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.stroke();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = `800 ${14 * k}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(label, p.x, p.y + 5 * k);
+  };
+  pts.start.map(clampP).forEach((p) => dot(p, "S", "#6B8E4E"));
+  falls.forEach((p, i) => dot(p, String(i + 1), "#D4A017"));
+  pts.end.map(clampP).forEach((p) => dot(p, "E", "#C4501F"));
+  ctx.restore();
+}
+function drawSummaryOverlay(ctx, W, H, m, img) {
+  const cx = W / 2;
+  const pts = normalizePoints(m.points);
+  const hasRoute = !!img && pts.start.length > 0 && pts.end.length > 0;
+  ctx.fillStyle = m.fallbackColor || "#2E3028";
+  ctx.fillRect(0, 0, W, H);
+  if (img) {
+    ctx.save();
+    ctx.filter = hasRoute ? "blur(22px)" : "none";
+    clDrawCover(ctx, img, -30, -30, W + 60, H + 60, 0);
+    ctx.restore();
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(0,0,0," + (hasRoute ? 0.6 : 0.6) + ")");
+    g.addColorStop(0.35, "rgba(0,0,0," + (hasRoute ? 0.5 : 0.3) + ")");
+    g.addColorStop(0.6, "rgba(0,0,0," + (hasRoute ? 0.55 : 0.45) + ")");
+    g.addColorStop(1, "rgba(0,0,0,0.78)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = "800 56px sans-serif";
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "10px";
+  ctx.fillText("CHALKLINE", cx + 5, 120);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  ctx.font = "600 26px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.fillText(m.place || m.subline || "", cx, 166);
+  ctx.shadowBlur = 0;
+  const rows = (m.stats || []).slice(0, 3);
+  if (hasRoute) {
+    const tw = 360, th = 450, tx = (W - tw) / 2, ty = 225;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.5)";
+    ctx.shadowBlur = 30;
+    clRoundRect(ctx, tx, ty, tw, th, 22);
+    ctx.fillStyle = "#000";
+    ctx.fill();
+    ctx.restore();
+    clDrawCover(ctx, img, tx, ty, tw, th, 22);
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    clRoundRect(ctx, tx, ty, tw, th, 22);
+    ctx.fill();
+    clDrawRouteLine(ctx, tx, ty, tw, th, img, m.points, 1);
+    const colW = (W - 100) / Math.max(rows.length, 1);
+    rows.forEach((st, i) => {
+      const x = 50 + colW * i + colW / 2;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 54px sans-serif";
+      ctx.fillText(String(st.value), x, 775);
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.font = "600 22px sans-serif";
+      ctx.fillText(st.label.toUpperCase(), x, 815);
+    });
+  } else {
+    const top = H * 0.5;
+    rows.forEach((st, i) => {
+      const y = top + i * 120;
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 34px sans-serif";
+      ctx.fillText(st.label.charAt(0).toUpperCase() + st.label.slice(1), cx, y);
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = "500 44px sans-serif";
+      ctx.fillText(String(st.value), cx, y + 50);
+    });
+  }
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 14;
+  ctx.font = "700 24px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.textAlign = "center";
+  ctx.fillText([m.name, m.date].filter(Boolean).join("   \u00B7   "), cx, H - 44);
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.textAlign = "left";
 }
 function drawSummaryBlurred(ctx, W, H, m, img, bg) {
   const light = clIsLight(bg);
@@ -2207,7 +2340,7 @@ function ShareCardModal({ data, onClose }) {
   const isProgress = data.variant === "progress";
   const isSummary = isToday || isLog || isBadgeCard || isProgress;
   const designs = isProfile ? NAME_TAG_DESIGNS : isLog ? LOG_DESIGNS : isSummary ? SUMMARY_DESIGNS : SHARE_DESIGNS;
-  const [design, setDesign] = useState(isProfile ? "blurred" : isSummary ? "blur" : "badge");
+  const [design, setDesign] = useState(isProfile ? "blurred" : isToday || isLog ? "strava" : isSummary ? "blur" : "badge");
   const [customBg, setCustomBg] = useState(null);
   const [cardBg, setCardBg] = useState(null);
   useEffect(() => {
@@ -2254,10 +2387,11 @@ function ShareCardModal({ data, onClose }) {
         if (design === "full") drawFullPhotoDesign(ctx, W, H, data, img2, cardBg);
         else if (design === "card") drawSummaryPhotoCard(ctx, W, H, model, img2, cardBg);
         else if (design === "clear") drawSummaryClear(ctx, W, H, model, img2, cardBg);
+        else if (design === "strava") drawSummaryOverlay(ctx, W, H, model, img2);
         else drawSummaryBlurred(ctx, W, H, model, img2, cardBg);
         finish();
       };
-      const src = design === "clear" ? customBg : design === "blur" ? heroPhoto || data.photo : heroPhoto;
+      const src = design === "clear" ? customBg : design === "blur" || design === "strava" ? heroPhoto || data.photo : heroPhoto;
       if (src) {
         const img = new Image();
         img.onload = () => renderCard(img);
@@ -2602,23 +2736,14 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
   const filteredLogs = baseList.filter(
     (l) => (query.trim() === "" || (l.title || "").toLowerCase().includes(query.toLowerCase()) || (l.gym || "").toLowerCase().includes(query.toLowerCase())) && (l.kind !== "climb" || statusFilter === "all" || logHasStatus(l, statusFilter)) && (l.kind !== "climb" || typeFilter === "all" || logHasType(l, typeFilter))
   ).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+  const h = React.createElement;
+  const infoLine = [boulderShown && boulderShown !== "NA" ? boulderShown : null, routeShown && routeShown !== "NA" ? usGrade(routeShown) : null].filter(Boolean).join("  \u00B7  ");
+  const infoParts = [infoLine, profile.mainGym].filter(Boolean).join("   \u00B7   ");
   const recordGroups = view === "records" ? groupRecordsByDay(filteredLogs.filter((l) => l.kind === "climb")) : [];
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, /* @__PURE__ */ React.createElement("div", { className: "cl-badge" }, /* @__PURE__ */ React.createElement("div", { className: "cl-badge-top" }, /* @__PURE__ */ React.createElement(Avatar, { name: profile.name, photo: profile.photo, size: 56 }), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-id" }, /* @__PURE__ */ React.createElement("div", { className: "cl-name-row" }, /* @__PURE__ */ React.createElement("h2", { title: profile.name }, profile.name)), /* @__PURE__ */ React.createElement("p", { className: "cl-sub cl-nowrap" }, profile.since ? `Since ${(/* @__PURE__ */ new Date(profile.since + "-01")).toLocaleDateString(void 0, { month: "short", year: "2-digit" })} \xB7 ${climbingDuration(profile.since)}` : "Since \u2014"), /* @__PURE__ */ React.createElement("p", { className: "cl-id-text" }, "@", profile.username || profile.slug.slice(0, 8))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-badge-action", onClick: onOpenQR, "aria-label": "My QR code" }, /* @__PURE__ */ React.createElement(QrCode, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: "cl-badge-action", onClick: onShareProfile, "aria-label": "Share your tag" }, /* @__PURE__ */ React.createElement(Share2, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: "cl-badge-action", onClick: onOpenSettings, "aria-label": "Settings" }, /* @__PURE__ */ React.createElement(Settings, { size: 18 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-identity-stats" }, /* @__PURE__ */ React.createElement("div", { className: "cl-id-stat" }, /* @__PURE__ */ React.createElement("b", null, climbLogs.length), /* @__PURE__ */ React.createElement("span", null, "posts")), /* @__PURE__ */ React.createElement("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "followers" ? null : "followers") }, /* @__PURE__ */ React.createElement("b", null, followerSlugs.length), /* @__PURE__ */ React.createElement("span", null, "followers")), /* @__PURE__ */ React.createElement("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "following" ? null : "following") }, /* @__PURE__ */ React.createElement("b", null, followingSlugs.length), /* @__PURE__ */ React.createElement("span", null, "following"))), showFollowers && /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, (showFollowers === "followers" ? followerSlugs : followingSlugs).length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nobody yet."), (showFollowers === "followers" ? followerSlugs : followingSlugs).map((s) => {
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, h("div", { className: "cl-profile" }, h("div", { className: "cl-profile-top" }, h(Avatar, { name: profile.name, photo: profile.photo, size: 78 }), h("div", { className: "cl-profile-stats" }, h("div", { className: "cl-id-stat" }, h("b", null, climbLogs.length), h("span", null, "logs")), h("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "followers" ? null : "followers") }, h("b", null, followerSlugs.length), h("span", null, "followers")), h("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "following" ? null : "following") }, h("b", null, followingSlugs.length), h("span", null, "following")))), h("div", { className: "cl-profile-name" }, profile.name), infoParts && h("div", { className: "cl-profile-line" }, infoParts), h("div", { className: "cl-profile-actions" }, h("button", { className: "cl-btn-ghost", onClick: onOpenSettings }, "Edit profile"), h("button", { className: "cl-btn-ghost", onClick: onShareProfile }, "Share profile"))), showFollowers && /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, (showFollowers === "followers" ? followerSlugs : followingSlugs).length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nobody yet."), (showFollowers === "followers" ? followerSlugs : followingSlugs).map((s) => {
     const p = allProfiles[s];
     return p ? /* @__PURE__ */ React.createElement("button", { className: "cl-crew-card", key: s, onClick: () => onOpenProfile(s), style: { textAlign: "left", cursor: "pointer", border: "1px solid var(--line)" } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 30 }), /* @__PURE__ */ React.createElement("div", { className: "cl-crew-name" }, p.name)) : null;
-  })), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row" }, boulderShown && boulderShown !== "NA" && /* @__PURE__ */ React.createElement(GradeChip, { type: "boulder", grade: boulderShown }), routeShown && routeShown !== "NA" && /* @__PURE__ */ React.createElement(GradeChip, { type: "toprope", grade: routeShown, label: "Route" })), profile.qualifications && profile.qualifications.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => {
-    const Ic = QUALIFICATION_ICONS[q] || GraduationCap;
-    return /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill cl-qual-pill", key: i }, /* @__PURE__ */ React.createElement(Ic, { size: 11 }), " ", q);
-  })), profile.gear && profile.gear.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, g))), /* @__PURE__ */ React.createElement("div", { className: "cl-badge-toggles" }, /* @__PURE__ */ React.createElement("div", { className: "cl-training-stats" }, /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat" }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 12 }), /* @__PURE__ */ React.createElement("b", null, stats.totalSent), " sent"), trackedTypes.map((t) => {
-    const count = stats[`${t}Count`];
-    const mins = stats.minutesByType[t];
-    let val;
-    if (statMetric === "count") val = count;
-    else if (statMetric === "hours") val = formatDuration(mins) || "0min";
-    else val = `${count} \xB7 ${formatDuration(mins) || "0min"}`;
-    const Icon = TYPE_ICONS[t];
-    return /* @__PURE__ */ React.createElement("span", { className: "cl-training-stat", key: t }, /* @__PURE__ */ React.createElement(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", /* @__PURE__ */ React.createElement("b", null, val));
-  })), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowBadges((v) => !v) }, /* @__PURE__ */ React.createElement(Award, { size: 14 }), " ", earnedCount, "/", badges.length, " badges"), /* @__PURE__ */ React.createElement("button", { className: "cl-kudo-btn", onClick: () => setShowCharts((v) => !v) }, /* @__PURE__ */ React.createElement(TrendingUp, { size: 14 }), " Progress")), showBadges && /* @__PURE__ */ React.createElement(BadgesGrid, { stats, onShareBadge }), showCharts && /* @__PURE__ */ React.createElement(ProgressCharts, { mine: climbLogs, onShare: onShareProgress })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("posts"), role: "tab", "aria-selected": view === "posts" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "saved" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("saved"), role: "tab", "aria-selected": view === "saved" }, "Saved")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: "cl-tabbar-icon", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list"), "aria-label": logViewMode === "list" ? "Show as grid" : "Show as list" }, logViewMode === "list" ? /* @__PURE__ */ React.createElement(LayoutGrid, { size: 18 }) : /* @__PURE__ */ React.createElement(ListIcon, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })), /* @__PURE__ */ React.createElement("button", { className: showFilters ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowFilters((v) => !v), "aria-label": "Filter" }, /* @__PURE__ */ React.createElement(Filter, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showFilters && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareDay(group.ts), "aria-label": "Share this day" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), view !== "records" && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
+  })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "progress" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("progress"), role: "tab", "aria-selected": view === "progress" }, "Progress"), /* @__PURE__ */ React.createElement("button", { className: view === "posts" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("posts"), role: "tab", "aria-selected": view === "posts" }, "Posts"), /* @__PURE__ */ React.createElement("button", { className: view === "saved" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("saved"), role: "tab", "aria-selected": view === "saved" }, "Saved")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), showSearch && view === "records" && h("button", { className: "cl-btn-ghost cl-view-toggle", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list") }, logViewMode === "list" ? h(LayoutGrid, { size: 14 }) : h(ListIcon, { size: 14 }), logViewMode === "list" ? " Show as grid" : " Show as list"), view === "progress" && h("div", { className: "cl-progress-view" }, h("div", { className: "cl-training-stats" }, h("span", { className: "cl-training-stat" }, h(CheckCircle2, { size: 12 }), h("b", null, stats.totalSent), " sent"), trackedTypes.map((t) => { const Icon = TYPE_ICONS[t]; const count = stats[`${t}Count`]; const mins = stats.minutesByType[t]; const val = statMetric === "count" ? count : statMetric === "hours" ? formatDuration(mins) || "0min" : `${count} \u00B7 ${formatDuration(mins) || "0min"}`; return h("span", { className: "cl-training-stat", key: t }, h(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", h("b", null, val)); })), h(ProgressCharts, { mine: climbLogs, onShare: onShareProgress }), h("p", { className: "cl-section-caption cl-pv-caption" }, "Badges  ", earnedCount, "/", badges.length), h(BadgesGrid, { stats, onShareBadge }), h("p", { className: "cl-section-caption cl-pv-caption" }, "About"), h("div", { className: "cl-about" }, h("p", { className: "cl-sub" }, "@", profile.username || profile.slug.slice(0, 8), profile.since ? `  \u00B7  Climbing since ${new Date(profile.since + "-01").toLocaleDateString(void 0, { month: "short", year: "numeric" })} (${climbingDuration(profile.since)})` : ""), profile.qualifications && profile.qualifications.length > 0 && h("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => { const Ic = QUALIFICATION_ICONS[q] || GraduationCap; return h("span", { className: "cl-gear-pill cl-qual-pill", key: i }, h(Ic, { size: 11 }), " ", q); })), profile.gear && profile.gear.length > 0 && h("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => h("span", { className: "cl-gear-pill", key: i }, g))))), view !== "progress" && filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), (view === "posts" || view === "saved") && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
       key: entry.id,
@@ -2640,7 +2765,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
       allLogs: logs,
       onOpenLogDetail
     }
-  )), (view === "records" || view === "posts") && /* @__PURE__ */ React.createElement("button", { className: "cl-fab-add", onClick: view === "records" ? onOpenNewPost : onOpenNewSocialPost, "aria-label": view === "records" ? "New log" : "New post" }, /* @__PURE__ */ React.createElement(Plus, { size: 24 })));
+  )));
 }
 function FeedTab({ me, profile, logs, profiles, commentsMap, addComment, toggleKudo, deleteLog, addTry, togglePrivacy, toggleSave, onOpenProfile, onEnlarge, onOpenNewPost, onShare, allLogs, onOpenLogDetail }) {
   const [feedTab, setFeedTab] = useState("suggested");
@@ -2671,7 +2796,7 @@ function FeedTab({ me, profile, logs, profiles, commentsMap, addComment, toggleK
       hideLogActions: true,
       onOpenLogDetail
     }
-  )), /* @__PURE__ */ React.createElement("button", { className: "cl-fab-add", title: "New post", onClick: onOpenNewPost }, /* @__PURE__ */ React.createElement(Plus, { size: 22 })));
+  )));
 }
 function SessionCard({ session, profiles, me, onJoin, onLeave, onDelete, onOpenProfile, comments, onComment }) {
   const [showComments, setShowComments] = useState(false);
@@ -2809,6 +2934,7 @@ function ChalklineApp() {
   const [bootstrapping, setBootstrapping] = useState(true);
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState("home");
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [showPeopleSearch, setShowPeopleSearch] = useState(false);
@@ -3066,7 +3192,7 @@ function ChalklineApp() {
       techniques,
       name: author.name,
       username: author.username,
-      place: "",
+      place: entry.gym || "",
       achievement: finished ? "Sent!" : "Trying",
       statusLabel: gradeLabel,
       statsLines: [
@@ -3136,7 +3262,7 @@ function ChalklineApp() {
       variant: "today",
       name: profiles[me].name,
       username: profiles[me].username,
-      place: profiles[me].mainGym || "",
+      place: d.gym || "",
       bestClimbLabel: d.bestClimbLabel || (d.isToday ? "No climbs yet today" : "No climbs logged that day"),
       totalClimbs: d.totalClimbs,
       totalSent: d.totalSent,
@@ -3323,39 +3449,42 @@ function ChalklineApp() {
     setTab("chat");
   };
   const myProfile = me ? profiles[me] : null;
-  const themeMode = myProfile && myProfile.themeMode || "light";
+  const themeMode = myProfile && myProfile.themeMode || "dark";
   const isDark = themeMode === "dark" || themeMode === "system" && systemDark;
   const themeColor = myProfile && myProfile.themeColor;
   const accentOverride = themeColor === "boulder" && myProfile ? gradeColor("boulder", myProfile.boulder) : null;
   const rootStyle = accentOverride ? { "--accent2": accentOverride } : void 0;
   return /* @__PURE__ */ React.createElement("div", { className: isDark ? "cl-app cl-dark" : "cl-app", style: rootStyle }, /* @__PURE__ */ React.createElement("style", null, `
         .cl-app {
-          --bg: #E7E3D8;
-          --surface: #FBFAF6;
-          --ink: #22241F;
-          --ink-soft: #5B5A50;
-          --line: #D9D4C4;
-          --accent: #6B8E4E;
-          --accent2: #C4501F;
-          --radius: 14px;
+          --bg: #F1EFE9;
+          --surface: #FFFFFF;
+          --ink: #14150F;
+          --ink-soft: #62665B;
+          --line: #E0DDD2;
+          --accent: #4F7F3A;
+          --accent2: #D2491F;
+          --radius: 12px;
           --card: #FFFFFF;
-          font-family: 'Work Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+          font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
           background: var(--bg);
           color: var(--ink);
           min-height: 100vh;
           width: 100%;
           position: relative;
+          -webkit-font-smoothing: antialiased;
         }
         .cl-app.cl-dark {
-          --card: #24261F;
-          --bg: #1A1B17;
-          --surface: #24261F;
-          --ink: #EDEAE1;
-          --ink-soft: #A8A395;
-          --line: #3A3C33;
+          --card: #161714;
+          --bg: #0C0D0B;
+          --surface: #161714;
+          --ink: #F2F0E9;
+          --ink-soft: #9EA195;
+          --line: #272923;
+          --accent: #86B26E;
+          --accent2: #F25A2C;
         }
         .cl-app h1, .cl-app h2, .cl-app h3 {
-          font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+          font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
           font-weight: 800;
           letter-spacing: 0.01em;
           margin: 0;
@@ -3472,7 +3601,7 @@ function ChalklineApp() {
         .cl-badge-toggles { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
         .cl-identity-stats { display: flex; gap: 18px; margin-top: 10px; }
         .cl-id-stat { display: flex; flex-direction: column; align-items: center; background: none; border: none; cursor: default; font-family: inherit; }
-        .cl-id-stat b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-id-stat b { font-size: 15px; font-family: 'Barlow Condensed', sans-serif; }
         .cl-id-stat span { font-size: 11px; color: var(--ink-soft); }
         .cl-training-stats { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin: 2px 0 6px; }
         .cl-training-stat { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); background: var(--bg); border-radius: 20px; padding: 4px 10px; }
@@ -3580,7 +3709,7 @@ function ChalklineApp() {
         .cl-scroll-picker::-webkit-scrollbar { display: none; }
         .cl-scroll-picker-item {
           height: 36px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center;
-          font-size: 16px; color: var(--ink-soft); font-family: 'Big Shoulders Display', sans-serif; cursor: pointer;
+          font-size: 16px; color: var(--ink-soft); font-family: 'Barlow Condensed', sans-serif; cursor: pointer;
         }
         .cl-scroll-picker-item.active { color: var(--ink); font-weight: 800; font-size: 22px; }
         .cl-scroll-picker-highlight { position: absolute; top: 36px; left: 0; right: 0; height: 36px; border-top: 1.5px solid var(--accent2); border-bottom: 1.5px solid var(--accent2); pointer-events: none; }
@@ -3647,7 +3776,7 @@ function ChalklineApp() {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           background: var(--ink); color: var(--surface); border-radius: 8px; width: 40px; height: 40px; flex-shrink: 0;
         }
-        .cl-date-day { font-family: 'Big Shoulders Display', sans-serif; font-size: 16px; font-weight: 800; line-height: 1; }
+        .cl-date-day { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; line-height: 1; }
         .cl-date-mon { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.04em; }
         .cl-session-avatar-btn { background: none; border: none; padding: 0; cursor: pointer; flex-shrink: 0; }
         .cl-session-main { flex: 1; min-width: 0; }
@@ -3662,7 +3791,7 @@ function ChalklineApp() {
 
         .cl-stats-row { display: flex; gap: 6px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; flex-wrap: wrap; }
         .cl-stat { flex: 1; min-width: 60px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
-        .cl-stat b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-stat b { font-size: 15px; font-family: 'Barlow Condensed', sans-serif; }
         .cl-stat span { font-size: 11px; color: var(--ink-soft); }
         .cl-stat-btn { background: none; border: none; cursor: pointer; font-family: inherit; color: var(--ink); }
 
@@ -3700,7 +3829,7 @@ function ChalklineApp() {
         .cl-record-sub { font-size: 11px; color: var(--ink-soft); }
         .cl-record-cols { display: flex; gap: 12px; flex-shrink: 0; }
         .cl-record-col { display: flex; flex-direction: column; align-items: center; }
-        .cl-record-col-val { font-size: 13px; font-weight: 700; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-record-col-val { font-size: 13px; font-weight: 700; font-family: 'Barlow Condensed', sans-serif; }
         .cl-record-col-label { font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
         .cl-record-expanded { border-top: 1px solid var(--line); }
         .cl-record-expanded .cl-card { border: none; border-radius: 0; }
@@ -3757,14 +3886,14 @@ function ChalklineApp() {
         .cl-swatch.active { outline: 3px solid var(--accent2); outline-offset: 2px; }
         .cl-swatch-auto { background: linear-gradient(135deg, var(--surface) 44%, var(--accent2) 44%, var(--accent2) 56%, var(--surface) 56%); }
         .cl-log-title-block { margin: 2px 0 14px; }
-        .cl-log-title { font-family: 'Big Shoulders Display', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.08; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+        .cl-log-title { font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.08; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
         .cl-log-title-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
         .cl-tabbar-even .cl-tabs { flex: 1; justify-content: space-evenly; }
         .cl-tabbar-even .cl-tbtab { justify-content: center; }
         .cl-chart-card { margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 6px 14px 14px; }
         .cl-chart-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 4px; }
         .cl-chart-summary > div { background: var(--bg); border-radius: 12px; padding: 10px 6px; text-align: center; }
-        .cl-chart-summary b { display: block; font-family: 'Big Shoulders Display', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.1; }
+        .cl-chart-summary b { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.1; }
         .cl-chart-summary span { font-size: 11.5px; color: var(--ink-soft); }
         .cl-chart-block { margin-top: 14px; }
         .cl-chart-title { font-size: 12.5px; font-weight: 700; color: var(--ink); margin: 0 0 6px; }
@@ -3803,7 +3932,7 @@ function ChalklineApp() {
         .cl-day-best-gym { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
         .cl-day-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
         .cl-day-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 6px; text-align: center; }
-        .cl-day-stat b { display: block; font-size: 22px; font-weight: 800; font-family: 'Big Shoulders Display', sans-serif; color: var(--ink); }
+        .cl-day-stat b { display: block; font-size: 22px; font-weight: 800; font-family: 'Barlow Condensed', sans-serif; color: var(--ink); }
         .cl-day-stat span { font-size: 11.5px; color: var(--ink-soft); }
         .cl-day-grade-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; }
         .cl-day-grade-type { flex: 1; font-size: 13px; color: var(--ink-soft); }
@@ -3816,7 +3945,7 @@ function ChalklineApp() {
         .cl-log-detail-row-top { display: flex; align-items: center; justify-content: space-between; }
         .cl-log-detail-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
         .cl-record-summary div { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 1px; }
-        .cl-record-summary b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-record-summary b { font-size: 15px; font-family: 'Barlow Condensed', sans-serif; }
         .cl-record-summary span { font-size: 11px; color: var(--ink-soft); }
         .cl-log-table { display: flex; flex-direction: column; }
         .cl-log-table-head { display: grid; grid-template-columns: 44px 1fr 44px 40px 60px; gap: 6px; padding: 4px 6px; font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -3864,7 +3993,7 @@ function ChalklineApp() {
 
         .cl-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 100; display: flex; flex-direction: column; }
         .cl-overlay-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
-        .cl-overlay-title { font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 17px; }
+        .cl-overlay-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 17px; }
         .cl-overlay-body { flex: 1; overflow-y: auto; padding: 12px 10px 28px; max-width: 680px; margin: 0 auto; width: 100%; }
 
         .cl-qr-box { display: flex; justify-content: center; margin: 16px 0; }
@@ -3883,7 +4012,7 @@ function ChalklineApp() {
         .cl-bubble.mine { align-self: flex-end; background: var(--ink); color: var(--surface); border: none; }
 
         .cl-live-tracker { text-align: center; padding: 20px 0; }
-        .cl-live-timer { font-family: 'Big Shoulders Display', sans-serif; font-size: 56px; font-weight: 800; line-height: 1; }
+        .cl-live-timer { font-family: 'Barlow Condensed', sans-serif; font-size: 56px; font-weight: 800; line-height: 1; }
         .cl-live-sub { color: var(--ink-soft); font-size: 13px; margin: 6px 0 0; }
         .cl-live-total { color: var(--ink-soft); font-size: 11px; margin: 2px 0 0; }
         .cl-fall-row { display: flex; gap: 8px; margin: 10px 0 16px; }
@@ -3909,6 +4038,7 @@ function ChalklineApp() {
         .cl-danger-confirm { background: var(--bg); border: 1px solid var(--accent2); border-radius: 10px; padding: 12px; margin-top: 8px; }
         .cl-copied-toast { text-align: center; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--bg); padding: 6px; margin: 0; }
 
+
         .cl-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 200; display: flex; align-items: center; justify-content: center; }
         .cl-lightbox-imgwrap { position: relative; max-width: 94vw; max-height: 88vh; }
         .cl-lightbox-imgwrap img { max-width: 94vw; max-height: 88vh; object-fit: contain; display: block; }
@@ -3916,13 +4046,105 @@ function ChalklineApp() {
 
         .cl-spin { animation: cl-spin 0.8s linear infinite; }
         @keyframes cl-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+        /* ---------- pro look + dark-mode legibility ---------- */
+        :where(.cl-app) button, :where(.cl-app) input, :where(.cl-app) select, :where(.cl-app) textarea { color: inherit; font-family: inherit; }
+        .cl-app select, .cl-app textarea, .cl-app input { color: var(--ink); }
+        .cl-app input::placeholder, .cl-app textarea::placeholder { color: var(--ink-soft); opacity: 0.7; }
+        .cl-app.cl-dark { color-scheme: dark; }
+        .cl-app h1, .cl-app h2, .cl-app h3 { text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+        .cl-app .cl-log-title, .cl-app .cl-lrow-title, .cl-app .cl-badge-id h2 { text-transform: none; letter-spacing: 0.01em; }
+        .cl-header { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 10px 16px; }
+        .cl-wordmark h1 { font-size: 19px; letter-spacing: 0.14em; font-weight: 800; }
+        .cl-main { padding-top: 14px; }
+        .cl-card, .cl-badge, .cl-lrow, .cl-crew-card, .cl-thread-row { border-radius: 12px; box-shadow: none; }
+        .cl-badge { border-width: 1px; background: var(--surface); }
+        .cl-app:not(.cl-dark) .cl-card, .cl-app:not(.cl-dark) .cl-lrow { box-shadow: 0 1px 2px rgba(20,21,15,0.04); }
+        .cl-nav { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding-top: 6px; }
+        .cl-nav button { border-radius: 8px; position: relative; }
+        .cl-nav button.active { background: none; color: var(--ink); }
+        .cl-nav button.active::before { content: ""; position: absolute; top: -7px; left: 30%; right: 30%; height: 2px; background: var(--accent2); border-radius: 0 0 2px 2px; }
+        .cl-nav-fab { border-radius: 14px !important; width: 48px; height: 48px; margin-top: -14px; box-shadow: 0 6px 18px rgba(242,90,44,0.35); }
+        .cl-nav-fab::before { display: none; }
+        .cl-fab-add { background: var(--accent2) !important; color: #fff !important; border-radius: 14px !important; box-shadow: 0 8px 22px rgba(0,0,0,0.35); }
+        .cl-chip { border-radius: 6px; border-width: 1px; padding: 3px 9px; font-size: 11.5px; letter-spacing: 0.02em; }
+        .cl-chip-na { border-width: 1px; }
+        .cl-chip-dot { border-radius: 2px; width: 7px; height: 7px; min-width: 7px; min-height: 7px; }
+        .cl-status { border-radius: 4px; text-transform: uppercase; letter-spacing: 0.07em; font-size: 9.5px; font-weight: 700; padding: 3px 7px; }
+        .cl-training-stat, .cl-gear-pill, .cl-pill, .cl-qual-chip { border-radius: 6px; }
+        .cl-btn-primary, .cl-btn-ghost, .cl-toggle, .cl-type-btn, .cl-status-pick, .cl-input, .cl-photo-btn, .cl-kudo-btn { border-radius: 8px; }
+        .cl-btn-primary { background: var(--accent2); color: #fff; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12.5px; font-weight: 700; padding: 12px; }
+        .cl-btn-ghost { font-weight: 600; letter-spacing: 0.02em; }
+        .cl-toggle.active, .cl-type-btn.active, .cl-tabbar-icon.active, .cl-add-btn { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+        .cl-toggle, .cl-type-btn { font-weight: 600; }
+        .cl-input:focus, .cl-app textarea:focus, .cl-app select:focus { outline: none; border-color: var(--accent2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent2) 22%, transparent); }
+        .cl-label, .cl-section-caption { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); }
+        .cl-tbtab { text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; font-weight: 700; }
+        .cl-tbtab.active::after { border-radius: 0; height: 2px; }
+        .cl-id-stat b, .cl-stat b, .cl-chart-summary b, .cl-day-stat b, .cl-record-col-val { font-weight: 700; letter-spacing: 0.02em; }
+        .cl-id-stat b { font-size: 20px; }
+        .cl-id-stat span, .cl-stat span { text-transform: uppercase; letter-spacing: 0.08em; font-size: 9.5px; }
+        .cl-chart-summary > div { border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+        .cl-chart-summary b { font-size: 26px; }
+        .cl-lrow { padding: 10px; gap: 12px; }
+        .cl-lrow-title { font-size: 17px; letter-spacing: 0.01em; font-weight: 700; }
+        .cl-sheet { border-radius: 16px 16px 0 0; }
+        .cl-sheet-btn { border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12.5px; font-weight: 700; }
+        .cl-sheet-btn.primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+        .cl-overlay-header { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .cl-overlay-title { text-transform: uppercase; letter-spacing: 0.12em; font-size: 15px; }
+        .cl-avatar { background: #3A3C34; color: #F2F0E9; letter-spacing: 0.03em; }
+        .cl-status-sent { background: rgba(79,127,58,0.14); color: #3F6B2C; }
+        .cl-status-trying { background: rgba(200,138,18,0.16); color: #8A5F08; }
+        .cl-status-deal { background: rgba(58,74,99,0.12); color: #3A4A63; }
+        .cl-dark .cl-status-sent { background: rgba(134,178,110,0.16); color: #A9D58E; }
+        .cl-dark .cl-status-trying { background: rgba(240,184,75,0.15); color: #F3BE55; }
+        .cl-dark .cl-status-deal { background: rgba(140,160,200,0.16); color: #AEBFE0; }
+        .cl-dark .cl-status-pick.sent.active { background: rgba(134,178,110,0.16); border-color: #A9D58E; color: #A9D58E; }
+        .cl-dark .cl-status-pick.trying.active { background: rgba(240,184,75,0.15); border-color: #F3BE55; color: #F3BE55; }
+        .cl-dark .cl-badge-item.earned { background: rgba(240,184,75,0.14); color: #F3BE55; }
+        /* grade colours that are too dark to see on a dark surface (black tag, navy lead) */
+        .cl-dark [style*="rgb(42, 42, 40)"] { border-color: #D8D5CA !important; }
+        .cl-dark .cl-chip-dot[style*="rgb(42, 42, 40)"], .cl-dark .cl-record-grid-photo-empty[style*="rgb(42, 42, 40)"], .cl-dark .cl-lrow-icon[style*="rgb(42, 42, 40)"] { background: #D8D5CA !important; }
+        .cl-dark [fill="#2A2A28"] { fill: #D8D5CA; }
+        .cl-dark [fill="#3A4A63"] { fill: #8FA3C9; }
+        .cl-dark [style*="rgb(58, 74, 99)"] { border-color: #8FA3C9 !important; }
+        .cl-dark .cl-chip-dot[style*="rgb(58, 74, 99)"] { background: #8FA3C9 !important; }
+        .cl-dark .cl-grade-swatch { color: var(--ink); }
+        .cl-dark .cl-photo-full, .cl-dark .cl-point-photo { background: #000; }
+        .cl-dark .cl-qual-chip.active { color: #0C0D0B; font-weight: 600; }
+        .cl-dark .cl-me-menu { box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        /* ---------- simplified layout ---------- */
+        .cl-profile { padding: 4px 16px 14px; }
+        .cl-profile-top { display: flex; align-items: center; gap: 22px; }
+        .cl-profile-stats { flex: 1; display: flex; justify-content: space-around; }
+        .cl-profile-stats .cl-id-stat { background: none; border: none; color: var(--ink); padding: 4px 6px; }
+        .cl-profile-stats .cl-id-stat b { font-size: 22px; }
+        .cl-profile-name { font-weight: 700; font-size: 16px; margin-top: 12px; }
+        .cl-profile-line { color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+        .cl-profile-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .cl-profile-actions .cl-btn-ghost { flex: 1; padding: 8px 10px; font-size: 13px; font-weight: 600; background: var(--surface); }
+        .cl-menu-backdrop { position: fixed; inset: 0; z-index: 39; }
+        .cl-me-menu { min-width: 190px; padding: 6px; }
+        .cl-me-menu button, .cl-me-link { width: 100%; text-align: left; background: none; border: none; padding: 11px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
+        .cl-me-menu button:hover, .cl-me-link:hover { background: var(--bg); }
+        .cl-add-option { width: 100%; display: flex; align-items: center; gap: 14px; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 14px 4px; cursor: pointer; color: var(--ink); }
+        .cl-add-option svg { color: var(--accent2); flex-shrink: 0; }
+        .cl-add-option b { display: block; font-size: 15px; font-weight: 600; }
+        .cl-add-option small { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+        .cl-lrow-meta { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
+        .cl-view-toggle { flex: none; align-self: flex-start; margin: 4px 16px 8px; padding: 7px 12px; font-size: 12px; }
+        .cl-progress-view { padding: 8px 16px 12px; }
+        .cl-pv-caption { margin: 18px 0 8px; }
+        .cl-about .cl-sub { margin-bottom: 8px; }
+        .cl-tbtab { padding-left: 8px; padding-right: 8px; }
+        .cl-tabbar .cl-tabs { overflow-x: auto; }
       `), bootstrapping || me && !hasLoadedOnce ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me && guestUsername ? /* @__PURE__ */ React.createElement(GuestProfileView, { username: guestUsername, onGoToLogin: () => {
     setGuestUsername(null);
     try {
       window.history.replaceState({}, "", window.location.pathname);
     } catch {
     }
-  } }) : !me || !profiles[me] ? /* @__PURE__ */ React.createElement(Onboarding, { onCreate: createProfile, onResume: resumeProfile, checkingSlug: creating, authedUid: me && !profiles[me] ? me : null }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-header" }, /* @__PURE__ */ React.createElement("div", { className: "cl-wordmark" }, /* @__PURE__ */ React.createElement(Mountain, { size: 20, strokeWidth: 2.4 }), /* @__PURE__ */ React.createElement("h1", null, "Chalkline")), /* @__PURE__ */ React.createElement("div", { className: "cl-header-right" }, /* @__PURE__ */ React.createElement("a", { className: "cl-icon-btn", href: "https://buymeacoffee.com/itszhixianv", target: "_blank", rel: "noreferrer", title: "Buy me a coffee" }, /* @__PURE__ */ React.createElement(Coffee, { size: 19 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setShowPeopleSearch(true), title: "Find people" }, /* @__PURE__ */ React.createElement(UserSearch, { size: 20 })), /* @__PURE__ */ React.createElement("div", { className: "cl-me-wrap" }, /* @__PURE__ */ React.createElement("button", { className: "cl-me", onClick: () => setMenuOpen((v) => !v) }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 30 })), menuOpen && /* @__PURE__ */ React.createElement("div", { className: "cl-me-menu" }, /* @__PURE__ */ React.createElement("button", { onClick: logOut }, /* @__PURE__ */ React.createElement(LogOut, { size: 14 }), " Log out"))))), /* @__PURE__ */ React.createElement("div", { className: "cl-main" }, tab === "home" && /* @__PURE__ */ React.createElement(
+  } }) : !me || !profiles[me] ? /* @__PURE__ */ React.createElement(Onboarding, { onCreate: createProfile, onResume: resumeProfile, checkingSlug: creating, authedUid: me && !profiles[me] ? me : null }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-header" }, /* @__PURE__ */ React.createElement("div", { className: "cl-wordmark" }, /* @__PURE__ */ React.createElement(Mountain, { size: 20, strokeWidth: 2.4 }), /* @__PURE__ */ React.createElement("h1", null, "Chalkline")), /* @__PURE__ */ React.createElement("div", { className: "cl-header-right" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setShowPeopleSearch(true), title: "Find people", "aria-label": "Find people" }, /* @__PURE__ */ React.createElement(UserSearch, { size: 20 })), /* @__PURE__ */ React.createElement("div", { className: "cl-me-wrap" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setMenuOpen((v) => !v), "aria-label": "Menu", title: "Menu" }, /* @__PURE__ */ React.createElement(MenuIcon, { size: 21 })), menuOpen && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-menu-backdrop", onClick: () => setMenuOpen(false) }), /* @__PURE__ */ React.createElement("div", { className: "cl-me-menu" }, /* @__PURE__ */ React.createElement("button", { onClick: () => { setMenuOpen(false); setShowSettings(true); } }, /* @__PURE__ */ React.createElement(Settings, { size: 15 }), " Settings"), /* @__PURE__ */ React.createElement("button", { onClick: () => { setMenuOpen(false); setShowMyQR(true); } }, /* @__PURE__ */ React.createElement(QrCode, { size: 15 }), " My QR code"), /* @__PURE__ */ React.createElement("a", { className: "cl-me-link", href: "https://buymeacoffee.com/itszhixianv", target: "_blank", rel: "noreferrer", onClick: () => setMenuOpen(false) }, /* @__PURE__ */ React.createElement(Coffee, { size: 15 }), " Buy me a coffee"), /* @__PURE__ */ React.createElement("button", { onClick: () => { setMenuOpen(false); logOut(); } }, /* @__PURE__ */ React.createElement(LogOut, { size: 15 }), " Log out")))))),  /* @__PURE__ */ React.createElement("div", { className: "cl-main" }, tab === "home" && /* @__PURE__ */ React.createElement(
     HomeTab,
     {
       me,
@@ -4007,7 +4229,7 @@ function ChalklineApp() {
       onConsumeOpenWith: () => setPendingChatWith(null),
       onOpenSharedPost: openSharedPost
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile & log" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })), /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Feed" }, /* @__PURE__ */ React.createElement(Globe, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-nav-fab", onClick: () => setLiveLogState({ continueEntry: null }), title: "Live Log" }, /* @__PURE__ */ React.createElement(Zap, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "chat" ? "active" : "", onClick: () => setTab("chat"), title: "Chat" }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 22 })))), viewingProfile && /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowAddMenu(true), title: "Add", "aria-label": "Add" }, /* @__PURE__ */ React.createElement(Plus, { size: 24 })), /* @__PURE__ */ React.createElement("button", { className: tab === "chat" ? "active" : "", onClick: () => setTab("chat"), title: "Chat", "aria-label": "Chat" }, /* @__PURE__ */ React.createElement(MessageCircle, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showAddMenu && /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: () => setShowAddMenu(false) }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, "Add"), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setLiveLogState({ continueEntry: null }); } }, /* @__PURE__ */ React.createElement(Zap, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "Live log"), /* @__PURE__ */ React.createElement("small", null, "Time attempts as you climb"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowNewPost(true); } }, /* @__PURE__ */ React.createElement(Layers, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New log"), /* @__PURE__ */ React.createElement("small", null, "Log a climb or a full day"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowSocialPost({}); } }, /* @__PURE__ */ React.createElement(Camera, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New post"), /* @__PURE__ */ React.createElement("small", null, "Share photos or gear with the crew"))))), viewingProfile && /* @__PURE__ */ React.createElement(
     ProfileView,
     {
       slug: viewingProfile,
