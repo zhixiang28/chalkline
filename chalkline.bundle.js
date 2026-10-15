@@ -1051,10 +1051,12 @@ function computeDaySummary(allLogs, me, targetDate) {
   let totalMinutes = 0, totalClimbs = 0, totalSent = 0;
   const byType = {}, byGrade = {};
   const entries = [];
+  const gymCounts = {};
   mine.forEach((l) => {
     const dayUpdates = (l.updates || []).filter(onDay);
     if (dayUpdates.length === 0) return;
     dayUpdates.forEach((u) => { totalMinutes += Number(u.minutes) || 0; });
+    if (l.gym) gymCounts[l.gym] = (gymCounts[l.gym] || 0) + dayUpdates.length;
     const ws = wallsFromEntry(l, onDay);
     let sentThatDay = false;
     ws.forEach((c) => {
@@ -1077,7 +1079,8 @@ function computeDaySummary(allLogs, me, targetDate) {
   const gradeBreakdown = Object.values(byGrade).sort((a, b) => b.count - a.count || gradeRank(b.type, b.grade) - gradeRank(a.type, a.grade));
   const bestClimbLabel = best ? `${best.entry.title ? best.entry.title + " \u2014 " : ""}${TYPE_LABELS[best.type]} ${best.gradeText}${best.sent ? " \u2014 Sent" : ""}` : "";
   const dateLabel = target.toLocaleDateString(void 0, isToday ? { weekday: "long", month: "short", day: "numeric" } : { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-  return { target, targetStr, isToday, best, bestClimbLabel, totalClimbs, totalSent, totalMinutes, typeBreakdown, gradeBreakdown, entries, dateLabel };
+  const gym = Object.keys(gymCounts).sort((a, b) => gymCounts[b] - gymCounts[a]).slice(0, 2).join(" & ");
+  return { target, targetStr, isToday, gym, best, bestClimbLabel, totalClimbs, totalSent, totalMinutes, typeBreakdown, gradeBreakdown, entries, dateLabel };
 }
 function DayConclusionModal({ targetDate, logs, me, onClose, onShareDay, onOpenLogDetail }) {
   const d = computeDaySummary(logs, me, targetDate);
@@ -1741,7 +1744,8 @@ var DAY_TYPE_COLORS = { boulder: "#C4501F", toprope: "#6B8E4E", lead: "#3A4A63",
 var SUMMARY_DESIGNS = [
   { id: "blur", label: "Blurred" },
   { id: "card", label: "Photo card" },
-  { id: "clear", label: "Transparent" }
+  { id: "clear", label: "Transparent" },
+  { id: "strava", label: "Overlay stats" }
 ];
 var LOG_DESIGNS = [...SUMMARY_DESIGNS, { id: "full", label: "Full photo" }];
 var CARD_SWATCHES = [null, "#F4F1E8", "#FFFFFF", "#22241F", "#1F3A5F", "#6B4C93", "#C4501F", "#D4A017"];
@@ -1907,6 +1911,47 @@ function clLogModel(d) {
     place: d.place,
     fallbackColor: d.bestType ? gradeColor(d.bestType, d.bestGrade) : "#8A8578"
   };
+}
+function drawSummaryOverlay(ctx, W, H, m, img) {
+  const cx = W / 2;
+  ctx.fillStyle = m.fallbackColor || "#2E3028";
+  ctx.fillRect(0, 0, W, H);
+  if (img) {
+    clDrawCover(ctx, img, 0, 0, W, H, 0);
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(0,0,0,0.6)");
+    g.addColorStop(0.35, "rgba(0,0,0,0.3)");
+    g.addColorStop(0.6, "rgba(0,0,0,0.45)");
+    g.addColorStop(1, "rgba(0,0,0,0.75)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  clFitText(ctx, "CHALKLINE", W - 100, 104, 50, 900);
+  ctx.fillText("CHALKLINE", cx, 150);
+  ctx.font = "600 28px sans-serif";
+  ctx.fillText(m.place || m.subline || "", cx, 200);
+  const rows = (m.stats || []).slice(0, 3);
+  const top = H * 0.5;
+  rows.forEach((st, i) => {
+    const y = top + i * 150;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "700 40px sans-serif";
+    ctx.fillText(st.label.charAt(0).toUpperCase() + st.label.slice(1), cx, y);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "500 46px sans-serif";
+    ctx.fillText(String(st.value), cx, y + 54);
+  });
+  ctx.font = "700 24px sans-serif";
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  const foot = [m.name, m.date].filter(Boolean).join("   \u00B7   ");
+  ctx.fillText(foot, cx, H - 44);
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = "transparent";
+  ctx.textAlign = "left";
 }
 function drawSummaryBlurred(ctx, W, H, m, img, bg) {
   const light = clIsLight(bg);
@@ -2207,7 +2252,7 @@ function ShareCardModal({ data, onClose }) {
   const isProgress = data.variant === "progress";
   const isSummary = isToday || isLog || isBadgeCard || isProgress;
   const designs = isProfile ? NAME_TAG_DESIGNS : isLog ? LOG_DESIGNS : isSummary ? SUMMARY_DESIGNS : SHARE_DESIGNS;
-  const [design, setDesign] = useState(isProfile ? "blurred" : isSummary ? "blur" : "badge");
+  const [design, setDesign] = useState(isProfile ? "blurred" : isToday || isLog ? "strava" : isSummary ? "blur" : "badge");
   const [customBg, setCustomBg] = useState(null);
   const [cardBg, setCardBg] = useState(null);
   useEffect(() => {
@@ -2254,10 +2299,11 @@ function ShareCardModal({ data, onClose }) {
         if (design === "full") drawFullPhotoDesign(ctx, W, H, data, img2, cardBg);
         else if (design === "card") drawSummaryPhotoCard(ctx, W, H, model, img2, cardBg);
         else if (design === "clear") drawSummaryClear(ctx, W, H, model, img2, cardBg);
+        else if (design === "strava") drawSummaryOverlay(ctx, W, H, model, img2);
         else drawSummaryBlurred(ctx, W, H, model, img2, cardBg);
         finish();
       };
-      const src = design === "clear" ? customBg : design === "blur" ? heroPhoto || data.photo : heroPhoto;
+      const src = design === "clear" ? customBg : design === "blur" || design === "strava" ? heroPhoto || data.photo : heroPhoto;
       if (src) {
         const img = new Image();
         img.onload = () => renderCard(img);
@@ -3066,7 +3112,7 @@ function ChalklineApp() {
       techniques,
       name: author.name,
       username: author.username,
-      place: "",
+      place: entry.gym || "",
       achievement: finished ? "Sent!" : "Trying",
       statusLabel: gradeLabel,
       statsLines: [
@@ -3136,7 +3182,7 @@ function ChalklineApp() {
       variant: "today",
       name: profiles[me].name,
       username: profiles[me].username,
-      place: profiles[me].mainGym || "",
+      place: d.gym || "",
       bestClimbLabel: d.bestClimbLabel || (d.isToday ? "No climbs yet today" : "No climbs logged that day"),
       totalClimbs: d.totalClimbs,
       totalSent: d.totalSent,
