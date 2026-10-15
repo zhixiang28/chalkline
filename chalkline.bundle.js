@@ -3455,39 +3455,42 @@ function ChalklineApp() {
     setTab("chat");
   };
   const myProfile = me ? profiles[me] : null;
-  const themeMode = myProfile && myProfile.themeMode || "light";
+  const themeMode = myProfile && myProfile.themeMode || "dark";
   const isDark = themeMode === "dark" || themeMode === "system" && systemDark;
   const themeColor = myProfile && myProfile.themeColor;
   const accentOverride = themeColor === "boulder" && myProfile ? gradeColor("boulder", myProfile.boulder) : null;
   const rootStyle = accentOverride ? { "--accent2": accentOverride } : void 0;
   return /* @__PURE__ */ React.createElement("div", { className: isDark ? "cl-app cl-dark" : "cl-app", style: rootStyle }, /* @__PURE__ */ React.createElement("style", null, `
         .cl-app {
-          --bg: #E7E3D8;
-          --surface: #FBFAF6;
-          --ink: #22241F;
-          --ink-soft: #5B5A50;
-          --line: #D9D4C4;
-          --accent: #6B8E4E;
-          --accent2: #C4501F;
-          --radius: 14px;
+          --bg: #F1EFE9;
+          --surface: #FFFFFF;
+          --ink: #14150F;
+          --ink-soft: #62665B;
+          --line: #E0DDD2;
+          --accent: #4F7F3A;
+          --accent2: #D2491F;
+          --radius: 12px;
           --card: #FFFFFF;
-          font-family: 'Work Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+          font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
           background: var(--bg);
           color: var(--ink);
           min-height: 100vh;
           width: 100%;
           position: relative;
+          -webkit-font-smoothing: antialiased;
         }
         .cl-app.cl-dark {
-          --card: #24261F;
-          --bg: #1A1B17;
-          --surface: #24261F;
-          --ink: #EDEAE1;
-          --ink-soft: #A8A395;
-          --line: #3A3C33;
+          --card: #161714;
+          --bg: #0C0D0B;
+          --surface: #161714;
+          --ink: #F2F0E9;
+          --ink-soft: #9EA195;
+          --line: #272923;
+          --accent: #86B26E;
+          --accent2: #F25A2C;
         }
         .cl-app h1, .cl-app h2, .cl-app h3 {
-          font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+          font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
           font-weight: 800;
           letter-spacing: 0.01em;
           margin: 0;
@@ -3604,7 +3607,7 @@ function ChalklineApp() {
         .cl-badge-toggles { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
         .cl-identity-stats { display: flex; gap: 18px; margin-top: 10px; }
         .cl-id-stat { display: flex; flex-direction: column; align-items: center; background: none; border: none; cursor: default; font-family: inherit; }
-        .cl-id-stat b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-id-stat b { font-size: 15px; font-family: 'Barlow Condensed', sans-serif; }
         .cl-id-stat span { font-size: 11px; color: var(--ink-soft); }
         .cl-training-stats { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin: 2px 0 6px; }
         .cl-training-stat { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); background: var(--bg); border-radius: 20px; padding: 4px 10px; }
@@ -3712,7 +3715,7 @@ function ChalklineApp() {
         .cl-scroll-picker::-webkit-scrollbar { display: none; }
         .cl-scroll-picker-item {
           height: 36px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center;
-          font-size: 16px; color: var(--ink-soft); font-family: 'Big Shoulders Display', sans-serif; cursor: pointer;
+          font-size: 16px; color: var(--ink-soft); font-family: 'Barlow Condensed', sans-serif; cursor: pointer;
         }
         .cl-scroll-picker-item.active { color: var(--ink); font-weight: 800; font-size: 22px; }
         .cl-scroll-picker-highlight { position: absolute; top: 36px; left: 0; right: 0; height: 36px; border-top: 1.5px solid var(--accent2); border-bottom: 1.5px solid var(--accent2); pointer-events: none; }
@@ -3779,7 +3782,7 @@ function ChalklineApp() {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           background: var(--ink); color: var(--surface); border-radius: 8px; width: 40px; height: 40px; flex-shrink: 0;
         }
-        .cl-date-day { font-family: 'Big Shoulders Display', sans-serif; font-size: 16px; font-weight: 800; line-height: 1; }
+        .cl-date-day { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; line-height: 1; }
         .cl-date-mon { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.04em; }
         .cl-session-avatar-btn { background: none; border: none; padding: 0; cursor: pointer; flex-shrink: 0; }
         .cl-session-main { flex: 1; min-width: 0; }
@@ -3794,7 +3797,7 @@ function ChalklineApp() {
 
         .cl-stats-row { display: flex; gap: 6px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; flex-wrap: wrap; }
         .cl-stat { flex: 1; min-width: 60px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
-        .cl-stat b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-stat b { font-size: 15px; font-family: 'Barlow Condensed', sans-serif; }
         .cl-stat span { font-size: 11px; color: var(--ink-soft); }
         .cl-stat-btn { background: none; border: none; cursor: pointer; font-family: inherit; color: var(--ink); }
 
@@ -3832,7 +3835,7 @@ function ChalklineApp() {
         .cl-record-sub { font-size: 11px; color: var(--ink-soft); }
         .cl-record-cols { display: flex; gap: 12px; flex-shrink: 0; }
         .cl-record-col { display: flex; flex-direction: column; align-items: center; }
-        .cl-record-col-val { font-size: 13px; font-weight: 700; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-record-col-val { font-size: 13px; font-weight: 700; font-family: 'Barlow Condensed', sans-serif; }
         .cl-record-col-label { font-size: 10.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
         .cl-record-expanded { border-top: 1px solid var(--line); }
         .cl-record-expanded .cl-card { border: none; border-radius: 0; }
@@ -3889,14 +3892,14 @@ function ChalklineApp() {
         .cl-swatch.active { outline: 3px solid var(--accent2); outline-offset: 2px; }
         .cl-swatch-auto { background: linear-gradient(135deg, var(--surface) 44%, var(--accent2) 44%, var(--accent2) 56%, var(--surface) 56%); }
         .cl-log-title-block { margin: 2px 0 14px; }
-        .cl-log-title { font-family: 'Big Shoulders Display', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.08; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+        .cl-log-title { font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 800; line-height: 1.08; margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
         .cl-log-title-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
         .cl-tabbar-even .cl-tabs { flex: 1; justify-content: space-evenly; }
         .cl-tabbar-even .cl-tbtab { justify-content: center; }
         .cl-chart-card { margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 6px 14px 14px; }
         .cl-chart-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0 4px; }
         .cl-chart-summary > div { background: var(--bg); border-radius: 12px; padding: 10px 6px; text-align: center; }
-        .cl-chart-summary b { display: block; font-family: 'Big Shoulders Display', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.1; }
+        .cl-chart-summary b { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1.1; }
         .cl-chart-summary span { font-size: 11.5px; color: var(--ink-soft); }
         .cl-chart-block { margin-top: 14px; }
         .cl-chart-title { font-size: 12.5px; font-weight: 700; color: var(--ink); margin: 0 0 6px; }
@@ -3935,7 +3938,7 @@ function ChalklineApp() {
         .cl-day-best-gym { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
         .cl-day-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
         .cl-day-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 6px; text-align: center; }
-        .cl-day-stat b { display: block; font-size: 22px; font-weight: 800; font-family: 'Big Shoulders Display', sans-serif; color: var(--ink); }
+        .cl-day-stat b { display: block; font-size: 22px; font-weight: 800; font-family: 'Barlow Condensed', sans-serif; color: var(--ink); }
         .cl-day-stat span { font-size: 11.5px; color: var(--ink-soft); }
         .cl-day-grade-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; }
         .cl-day-grade-type { flex: 1; font-size: 13px; color: var(--ink-soft); }
@@ -3948,7 +3951,7 @@ function ChalklineApp() {
         .cl-log-detail-row-top { display: flex; align-items: center; justify-content: space-between; }
         .cl-log-detail-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
         .cl-record-summary div { flex: 1; text-align: center; display: flex; flex-direction: column; gap: 1px; }
-        .cl-record-summary b { font-size: 15px; font-family: 'Big Shoulders Display', sans-serif; }
+        .cl-record-summary b { font-size: 15px; font-family: 'Barlow Condensed', sans-serif; }
         .cl-record-summary span { font-size: 11px; color: var(--ink-soft); }
         .cl-log-table { display: flex; flex-direction: column; }
         .cl-log-table-head { display: grid; grid-template-columns: 44px 1fr 44px 40px 60px; gap: 6px; padding: 4px 6px; font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -3996,7 +3999,7 @@ function ChalklineApp() {
 
         .cl-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 100; display: flex; flex-direction: column; }
         .cl-overlay-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
-        .cl-overlay-title { font-family: 'Big Shoulders Display', sans-serif; font-weight: 800; font-size: 17px; }
+        .cl-overlay-title { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 17px; }
         .cl-overlay-body { flex: 1; overflow-y: auto; padding: 12px 10px 28px; max-width: 680px; margin: 0 auto; width: 100%; }
 
         .cl-qr-box { display: flex; justify-content: center; margin: 16px 0; }
@@ -4015,7 +4018,7 @@ function ChalklineApp() {
         .cl-bubble.mine { align-self: flex-end; background: var(--ink); color: var(--surface); border: none; }
 
         .cl-live-tracker { text-align: center; padding: 20px 0; }
-        .cl-live-timer { font-family: 'Big Shoulders Display', sans-serif; font-size: 56px; font-weight: 800; line-height: 1; }
+        .cl-live-timer { font-family: 'Barlow Condensed', sans-serif; font-size: 56px; font-weight: 800; line-height: 1; }
         .cl-live-sub { color: var(--ink-soft); font-size: 13px; margin: 6px 0 0; }
         .cl-live-total { color: var(--ink-soft); font-size: 11px; margin: 2px 0 0; }
         .cl-fall-row { display: flex; gap: 8px; margin: 10px 0 16px; }
@@ -4041,6 +4044,7 @@ function ChalklineApp() {
         .cl-danger-confirm { background: var(--bg); border: 1px solid var(--accent2); border-radius: 10px; padding: 12px; margin-top: 8px; }
         .cl-copied-toast { text-align: center; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--bg); padding: 6px; margin: 0; }
 
+
         .cl-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 200; display: flex; align-items: center; justify-content: center; }
         .cl-lightbox-imgwrap { position: relative; max-width: 94vw; max-height: 88vh; }
         .cl-lightbox-imgwrap img { max-width: 94vw; max-height: 88vh; object-fit: contain; display: block; }
@@ -4048,6 +4052,73 @@ function ChalklineApp() {
 
         .cl-spin { animation: cl-spin 0.8s linear infinite; }
         @keyframes cl-spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+        /* ---------- pro look + dark-mode legibility ---------- */
+        :where(.cl-app) button, :where(.cl-app) input, :where(.cl-app) select, :where(.cl-app) textarea { color: inherit; font-family: inherit; }
+        .cl-app select, .cl-app textarea, .cl-app input { color: var(--ink); }
+        .cl-app input::placeholder, .cl-app textarea::placeholder { color: var(--ink-soft); opacity: 0.7; }
+        .cl-app.cl-dark { color-scheme: dark; }
+        .cl-app h1, .cl-app h2, .cl-app h3 { text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+        .cl-app .cl-log-title, .cl-app .cl-lrow-title, .cl-app .cl-badge-id h2 { text-transform: none; letter-spacing: 0.01em; }
+        .cl-header { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); padding: 10px 16px; }
+        .cl-wordmark h1 { font-size: 19px; letter-spacing: 0.14em; font-weight: 800; }
+        .cl-main { padding-top: 14px; }
+        .cl-card, .cl-badge, .cl-lrow, .cl-crew-card, .cl-thread-row { border-radius: 12px; box-shadow: none; }
+        .cl-badge { border-width: 1px; background: var(--surface); }
+        .cl-app:not(.cl-dark) .cl-card, .cl-app:not(.cl-dark) .cl-lrow { box-shadow: 0 1px 2px rgba(20,21,15,0.04); }
+        .cl-nav { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); padding-top: 6px; }
+        .cl-nav button { border-radius: 8px; position: relative; }
+        .cl-nav button.active { background: none; color: var(--ink); }
+        .cl-nav button.active::before { content: ""; position: absolute; top: -7px; left: 30%; right: 30%; height: 2px; background: var(--accent2); border-radius: 0 0 2px 2px; }
+        .cl-nav-fab { border-radius: 14px !important; width: 48px; height: 48px; margin-top: -14px; box-shadow: 0 6px 18px rgba(242,90,44,0.35); }
+        .cl-nav-fab::before { display: none; }
+        .cl-fab-add { background: var(--accent2) !important; color: #fff !important; border-radius: 14px !important; box-shadow: 0 8px 22px rgba(0,0,0,0.35); }
+        .cl-chip { border-radius: 6px; border-width: 1px; padding: 3px 9px; font-size: 11.5px; letter-spacing: 0.02em; }
+        .cl-chip-na { border-width: 1px; }
+        .cl-chip-dot { border-radius: 2px; width: 7px; height: 7px; min-width: 7px; min-height: 7px; }
+        .cl-status { border-radius: 4px; text-transform: uppercase; letter-spacing: 0.07em; font-size: 9.5px; font-weight: 700; padding: 3px 7px; }
+        .cl-training-stat, .cl-gear-pill, .cl-pill, .cl-qual-chip { border-radius: 6px; }
+        .cl-btn-primary, .cl-btn-ghost, .cl-toggle, .cl-type-btn, .cl-status-pick, .cl-input, .cl-photo-btn, .cl-kudo-btn { border-radius: 8px; }
+        .cl-btn-primary { background: var(--accent2); color: #fff; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12.5px; font-weight: 700; padding: 12px; }
+        .cl-btn-ghost { font-weight: 600; letter-spacing: 0.02em; }
+        .cl-toggle.active, .cl-type-btn.active, .cl-tabbar-icon.active, .cl-add-btn { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+        .cl-toggle, .cl-type-btn { font-weight: 600; }
+        .cl-input:focus, .cl-app textarea:focus, .cl-app select:focus { outline: none; border-color: var(--accent2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent2) 22%, transparent); }
+        .cl-label, .cl-section-caption { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); }
+        .cl-tbtab { text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; font-weight: 700; }
+        .cl-tbtab.active::after { border-radius: 0; height: 2px; }
+        .cl-id-stat b, .cl-stat b, .cl-chart-summary b, .cl-day-stat b, .cl-record-col-val { font-weight: 700; letter-spacing: 0.02em; }
+        .cl-id-stat b { font-size: 20px; }
+        .cl-id-stat span, .cl-stat span { text-transform: uppercase; letter-spacing: 0.08em; font-size: 9.5px; }
+        .cl-chart-summary > div { border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+        .cl-chart-summary b { font-size: 26px; }
+        .cl-lrow { padding: 10px; gap: 12px; }
+        .cl-lrow-title { font-size: 17px; letter-spacing: 0.01em; font-weight: 700; }
+        .cl-sheet { border-radius: 16px 16px 0 0; }
+        .cl-sheet-btn { border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-size: 12.5px; font-weight: 700; }
+        .cl-sheet-btn.primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+        .cl-overlay-header { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .cl-overlay-title { text-transform: uppercase; letter-spacing: 0.12em; font-size: 15px; }
+        .cl-avatar { background: #3A3C34; color: #F2F0E9; letter-spacing: 0.03em; }
+        .cl-status-sent { background: rgba(79,127,58,0.14); color: #3F6B2C; }
+        .cl-status-trying { background: rgba(200,138,18,0.16); color: #8A5F08; }
+        .cl-status-deal { background: rgba(58,74,99,0.12); color: #3A4A63; }
+        .cl-dark .cl-status-sent { background: rgba(134,178,110,0.16); color: #A9D58E; }
+        .cl-dark .cl-status-trying { background: rgba(240,184,75,0.15); color: #F3BE55; }
+        .cl-dark .cl-status-deal { background: rgba(140,160,200,0.16); color: #AEBFE0; }
+        .cl-dark .cl-status-pick.sent.active { background: rgba(134,178,110,0.16); border-color: #A9D58E; color: #A9D58E; }
+        .cl-dark .cl-status-pick.trying.active { background: rgba(240,184,75,0.15); border-color: #F3BE55; color: #F3BE55; }
+        .cl-dark .cl-badge-item.earned { background: rgba(240,184,75,0.14); color: #F3BE55; }
+        /* grade colours that are too dark to see on a dark surface (black tag, navy lead) */
+        .cl-dark [style*="rgb(42, 42, 40)"] { border-color: #D8D5CA !important; }
+        .cl-dark .cl-chip-dot[style*="rgb(42, 42, 40)"], .cl-dark .cl-record-grid-photo-empty[style*="rgb(42, 42, 40)"], .cl-dark .cl-lrow-icon[style*="rgb(42, 42, 40)"] { background: #D8D5CA !important; }
+        .cl-dark [fill="#2A2A28"] { fill: #D8D5CA; }
+        .cl-dark [fill="#3A4A63"] { fill: #8FA3C9; }
+        .cl-dark [style*="rgb(58, 74, 99)"] { border-color: #8FA3C9 !important; }
+        .cl-dark .cl-chip-dot[style*="rgb(58, 74, 99)"] { background: #8FA3C9 !important; }
+        .cl-dark .cl-grade-swatch { color: var(--ink); }
+        .cl-dark .cl-photo-full, .cl-dark .cl-point-photo { background: #000; }
+        .cl-dark .cl-qual-chip.active { color: #0C0D0B; font-weight: 600; }
+        .cl-dark .cl-me-menu { box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
       `), bootstrapping || me && !hasLoadedOnce ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me && guestUsername ? /* @__PURE__ */ React.createElement(GuestProfileView, { username: guestUsername, onGoToLogin: () => {
     setGuestUsername(null);
     try {
