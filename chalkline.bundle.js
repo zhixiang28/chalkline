@@ -54,6 +54,8 @@ import {
   Images,
   LayoutGrid,
   Pencil,
+  Video as VideoIcon,
+  Play,
   Menu as MenuIcon,
   Home as HomeIcon,
   List as ListIcon
@@ -1162,7 +1164,78 @@ function DayConclusionModal({ targetDate, logs, me, onClose, onShareDay, onOpenL
 function BottomSheet({ title, message, confirmLabel = "Confirm", danger = false, onConfirm, onCancel }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: onCancel }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, title), message && /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-message" }, message), /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-sheet-btn", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: danger ? "cl-sheet-btn danger" : "cl-sheet-btn primary", onClick: onConfirm }, confirmLabel))));
 }
-function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePrivacy, onAddTry, onEditEntry, onLiveLog, onShare, onShareToPost }) {
+var CLIP_DB = "chalkline-clips";
+function openClipDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(CLIP_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("clips");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function clipTx(mode, fn) {
+  const d = await openClipDB();
+  return new Promise((resolve, reject) => {
+    const t = d.transaction("clips", mode);
+    const r = fn(t.objectStore("clips"));
+    t.oncomplete = () => resolve(r && r.result);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}
+async function saveClip(file) {
+  const id = uid();
+  await clipTx("readwrite", (st) => st.put(file, id));
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
+  return id;
+}
+const getClip = (id) => clipTx("readonly", (st) => st.get(id));
+const deleteClip = (id) => clipTx("readwrite", (st) => st.delete(id));
+function formatBytes(n) {
+  if (!n) return "";
+  return n > 1048576 ? `${(n / 1048576).toFixed(n > 1.04858e8 ? 0 : 1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+}
+function VideoClips({ update, canEdit, onChange }) {
+  const [open, setOpen] = useState(null);
+  const [url, setUrl] = useState(null);
+  const [missing, setMissing] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const videos = update.videos || [];
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  if (!canEdit) return null;
+  const play = async (v) => {
+    if (open === v.id) { setOpen(null); setUrl(null); return; }
+    try {
+      const blob = await getClip(v.id);
+      if (!blob) { setMissing((m) => ({ ...m, [v.id]: true })); return; }
+      setUrl(URL.createObjectURL(blob));
+      setOpen(v.id);
+    } catch { setMissing((m) => ({ ...m, [v.id]: true })); }
+  };
+  const onFile = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const id = await saveClip(f);
+      await onChange([...videos, { id, name: f.name || "Video", size: f.size, addedAt: Date.now() }]);
+    } catch {
+      setErr("Couldn't save that video on this device \u2014 storage may be full.");
+    }
+    setBusy(false);
+  };
+  const remove = async (v) => {
+    try { await deleteClip(v.id); } catch {}
+    if (open === v.id) { setOpen(null); setUrl(null); }
+    await onChange(videos.filter((x) => x.id !== v.id));
+  };
+  const inputId = `clip-${update.id}`;
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-clips" }, videos.map((v) => /* @__PURE__ */ React.createElement("div", { key: v.id, className: "cl-clip" }, /* @__PURE__ */ React.createElement("div", { className: "cl-clip-row" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-clip-play", onClick: () => play(v) }, /* @__PURE__ */ React.createElement(Play, { size: 14 }), /* @__PURE__ */ React.createElement("span", null, open === v.id ? "Close video" : "Play video"), /* @__PURE__ */ React.createElement("small", null, formatBytes(v.size))), /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => remove(v), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 13 }), title: "Remove video" })), missing[v.id] && /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "This video isn't on this device \u2014 it was saved on another phone or the browser data was cleared."), open === v.id && url && /* @__PURE__ */ React.createElement("video", { className: "cl-clip-video", src: url, controls: true, playsInline: true, autoPlay: true }))), /* @__PURE__ */ React.createElement("input", { id: inputId, type: "file", accept: "video/*", className: "cl-file-hidden", onChange: onFile }), /* @__PURE__ */ React.createElement("label", { htmlFor: inputId, className: "cl-clip-add" }, /* @__PURE__ */ React.createElement(VideoIcon, { size: 14 }), busy ? " Saving\u2026" : " Add video"), videos.length === 0 && !err && /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 4 } }, "Videos stay on this phone only \u2014 they aren't uploaded."), err && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, err));
+}
+function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePrivacy, onAddTry, onEditEntry, onUpdateVideos, onLiveLog, onShare, onShareToPost }) {
   const [addingTry, setAddingTry] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -1185,7 +1258,7 @@ function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePriva
         setEditingId(null);
       } });
     }
-    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8 } }, isMine && onEditEntry && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setEditingId(u.id), title: "Edit this entry", "aria-label": "Edit this entry" }, /* @__PURE__ */ React.createElement(Pencil, { size: 14 })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? sentLabel(u.climbs) : "Trying"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1min"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note), u.nextTime && /* @__PURE__ */ React.createElement("p", { className: "cl-note cl-next-note" }, /* @__PURE__ */ React.createElement("b", null, "Next: "), u.nextTime));
+    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8 } }, isMine && onEditEntry && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setEditingId(u.id), title: "Edit this entry", "aria-label": "Edit this entry" }, /* @__PURE__ */ React.createElement(Pencil, { size: 14 })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? sentLabel(u.climbs) : "Trying"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1min"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note), u.nextTime && /* @__PURE__ */ React.createElement("p", { className: "cl-note cl-next-note" }, /* @__PURE__ */ React.createElement("b", null, "Next: "), u.nextTime), isMine && onUpdateVideos && /* @__PURE__ */ React.createElement(VideoClips, { update: u, canEdit: true, onChange: (vids) => onUpdateVideos(entry.id, u.id, vids) }));
   })), confirm === "delete" && /* @__PURE__ */ React.createElement(BottomSheet, { title: "Delete this log?", message: "This removes the log and every attempt in it. You can't undo this.", confirmLabel: "Delete", danger: true, onCancel: () => setConfirm(null), onConfirm: () => { setConfirm(null); onDelete(entry.id); onClose(); } }), confirm === "privacy" && /* @__PURE__ */ React.createElement(BottomSheet, { title: entry.privacy === "private" ? "Make this log public?" : "Make this log private?", message: entry.privacy === "private" ? "Anyone on Chalkline will be able to see it." : "Only you will be able to see it.", confirmLabel: entry.privacy === "private" ? "Make public" : "Make private", onCancel: () => setConfirm(null), onConfirm: () => { setConfirm(null); onTogglePrivacy(entry.id); } })));
 }
 function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onEnlarge, onShare, onShareToPost, onOpenLogDetail }) {
@@ -3423,6 +3496,13 @@ function ChalklineApp() {
     await safeSet(`log:${logId}`, JSON.stringify(next), true);
     setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
   };
+  const setUpdateVideos = async (logId, updateId, videos) => {
+    const entry = logs.find((l) => l.id === logId);
+    if (!entry) return;
+    const next = { ...entry, updates: (entry.updates || []).map((u) => u.id === updateId ? { ...u, videos } : u) };
+    await safeSet(`log:${logId}`, JSON.stringify(next), true);
+    setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
+  };
   const togglePrivacy = async (logId) => {
     const entry = logs.find((l) => l.id === logId);
     if (!entry) return;
@@ -3455,6 +3535,10 @@ function ChalklineApp() {
     setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
   };
   const deleteLog = async (logId) => {
+    try {
+      const gone = logs.find((l) => l.id === logId);
+      ((gone && gone.updates) || []).forEach((u) => (u.videos || []).forEach((v) => deleteClip(v.id).catch(() => {})));
+    } catch {}
     setLogs((prev) => prev.filter((l) => l.id !== logId));
     try {
       await window.storage.delete(`log:${logId}`, true);
@@ -4293,6 +4377,15 @@ function ChalklineApp() {
         .cl-goal-bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 10px; overflow: hidden; }
         .cl-goal-bar i { display: block; height: 100%; background: var(--accent2); border-radius: 3px; }
         .cl-cal-btn { display: inline-flex; align-items: center; gap: 6px; color: var(--accent2); }
+        .cl-clips { margin-top: 10px; }
+        .cl-clip { margin-bottom: 6px; }
+        .cl-clip-row { display: flex; align-items: center; gap: 8px; }
+        .cl-clip-play { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+        .cl-clip-play svg { color: var(--accent2); }
+        .cl-clip-play small { margin-left: auto; font-weight: 500; color: var(--ink-soft); font-size: 11px; }
+        .cl-clip-video { width: 100%; margin-top: 6px; border-radius: 8px; background: #000; max-height: 360px; }
+        .cl-clip-add { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); cursor: pointer; background: transparent; }
+        .cl-clip-add:hover { border-color: var(--accent2); color: var(--accent2); }
       `), bootstrapping || me && !hasLoadedOnce ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me && guestUsername ? /* @__PURE__ */ React.createElement(GuestProfileView, { username: guestUsername, onGoToLogin: () => {
     setGuestUsername(null);
     try {
@@ -4441,7 +4534,7 @@ function ChalklineApp() {
       sendMessage,
       onOpenChat: goToChat
     }
-  ), viewingDay && /* @__PURE__ */ React.createElement(DayConclusionModal, { targetDate: viewingDay, logs, me, onClose: () => setViewingDay(null), onShareDay: shareDay, onOpenLogDetail: setViewingLogDetail }), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: logs.find((l) => l.id === viewingLogDetail.id) || viewingLogDetail, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }), me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onEditEntry: editEntry, onLiveLog: (entryArg) => setLiveLogState({ continueEntry: entryArg }), onShare, onShareToPost: (entryArg) => setShowSocialPost({ attachLogId: entryArg.id }) }), viewingSharedPost && /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setViewingSharedPost(null) }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Shared post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
+  ), viewingDay && /* @__PURE__ */ React.createElement(DayConclusionModal, { targetDate: viewingDay, logs, me, onClose: () => setViewingDay(null), onShareDay: shareDay, onOpenLogDetail: setViewingLogDetail }), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: logs.find((l) => l.id === viewingLogDetail.id) || viewingLogDetail, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }), me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onEditEntry: editEntry, onUpdateVideos: setUpdateVideos, onLiveLog: (entryArg) => setLiveLogState({ continueEntry: entryArg }), onShare, onShareToPost: (entryArg) => setShowSocialPost({ attachLogId: entryArg.id }) }), viewingSharedPost && /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setViewingSharedPost(null) }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Shared post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
     PostCard,
     {
       entry: viewingSharedPost,
