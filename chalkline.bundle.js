@@ -54,6 +54,7 @@ import {
   Images,
   LayoutGrid,
   Pencil,
+  Bell,
   Video as VideoIcon,
   Play,
   Menu as MenuIcon,
@@ -934,6 +935,9 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
     const d = /* @__PURE__ */ new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })(), onChange: (e) => setEntryDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "Next time try (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: nextTime, onChange: (e) => setNextTime(e.target.value), placeholder: "e.g. Left heel hook on move 3" })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add your own" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
+}
+function NewPostForm({ defaultGym, onCancel, onSaveLog }) {
+  return /* @__PURE__ */ React.createElement(LogForm, { initial: { gym: defaultGym }, onCancel, onSave: onSaveLog });
 }
 function GearEditor({ gear, setGear }) {
   const [val, setVal] = useState("");
@@ -2703,6 +2707,75 @@ function SettingsOverlay({ profile, onSave, onClose, onDeleteAccount }) {
     setDeleteError("");
   } }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0, background: "var(--accent2)" }, onClick: confirmDelete }, /* @__PURE__ */ React.createElement(Trash2, { size: 14, style: { marginRight: 6 } }), " Yes, delete everything"))), deleteStep === 2 && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, "Deleting your account\u2026")), ), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons cl-sticky-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onClose }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0 }, onClick: save }, "Save settings"))));
 }
+function DayRow({ group, summary: d, onOpen }) {
+  const best = d.best;
+  const Icon = best ? TYPE_ICONS[best.type] : Mountain;
+  const color = best ? gradeColor(best.type, best.grade) : "#8A8578";
+  const logs = d.entries.length;
+  const meta = [`${logs} ${logs === 1 ? "log" : "logs"}`, `${d.totalClimbs} ${d.totalClimbs === 1 ? "climb" : "climbs"}`, d.totalMinutes > 0 ? formatDuration(d.totalMinutes) : null, d.gym].filter(Boolean).join("  ·  ");
+  return /* @__PURE__ */ React.createElement("button", { className: "cl-lrow cl-dayrow", onClick: () => onOpen(group.ts), "aria-label": `Open ${group.label}` }, best && best.entry.photo ? /* @__PURE__ */ React.createElement("img", { src: best.entry.photo, alt: "", className: "cl-lrow-media" }) : /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-media cl-lrow-media-empty", style: { background: color } }, /* @__PURE__ */ React.createElement(Icon, { size: 26, color: "#fff" })), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-title" }, group.label), d.totalSent > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-status cl-status-sent" }, d.totalSent, " sent")), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-mid" }, best && /* @__PURE__ */ React.createElement(GradeChip, { type: best.type, grade: best.grade }), best && /* @__PURE__ */ React.createElement("span", { className: "cl-lrow-gym" }, "Best: ", best.entry.title || "Untitled")), /* @__PURE__ */ React.createElement("div", { className: "cl-lrow-stats cl-lrow-meta" }, meta)), /* @__PURE__ */ React.createElement(ChevronRight, { size: 18, className: "cl-lrow-chev" }));
+}
+function nextChallenges(stats) {
+  const list = [];
+  const all = BADGE_DEFS;
+  const firstUnearned = (prefix) => all.filter((b) => b.id.startsWith(prefix)).find((b) => !b.test(stats));
+  const sentB = firstUnearned("finish-");
+  if (sentB) {
+    const target = Number(sentB.id.split("-")[1]);
+    list.push({ id: sentB.id, icon: CheckCircle2, title: `Send ${target} climbs`, frac: stats.totalSent / target, text: `${stats.totalSent} / ${target} sent` });
+  }
+  const hoursB = firstUnearned("hours-");
+  if (hoursB) {
+    const target = Number(hoursB.id.split("-")[1]);
+    const cur = stats.totalMinutes / 60;
+    list.push({ id: hoursB.id, icon: Clock, title: `Climb ${target} hours`, frac: cur / target, text: `${cur < 10 ? cur.toFixed(1) : Math.floor(cur)} / ${target} hours` });
+  }
+  const boulderB = firstUnearned("boulder-");
+  if (boulderB) {
+    const g = boulderB.id.slice(8);
+    const t = gradeRank("boulder", g);
+    const cur = Number.isFinite(stats.boulderRank) ? stats.boulderRank : -2;
+    const hardest = cur >= 0 ? boulderLabel(`V${cur}`) : cur === -1 ? boulderLabel("VB") : null;
+    list.push({ id: boulderB.id, icon: CircleDot, title: `Send ${boulderLabel(g)}`, frac: Math.max(0, (cur + 2) / (t + 2)), text: hardest ? `Hardest boulder so far: ${hardest}` : "No boulder sends yet" });
+  }
+  const routeB = firstUnearned("route-");
+  if (routeB) {
+    const g = routeB.id.slice(6);
+    const t = gradeRank("toprope", g);
+    const cur = Number.isFinite(stats.routeRank) ? stats.routeRank : -1;
+    list.push({ id: routeB.id, icon: Flag, title: `Send ${usGrade(g)}`, frac: Math.max(0, (cur + 1) / (t + 1)), text: cur >= 0 ? `Hardest route so far: ${usGrade(ROUTE_GRADES[cur])}` : "No route sends yet" });
+  }
+  return list.sort((a, b) => b.frac - a.frac).slice(0, 3);
+}
+function NextChallenges({ stats }) {
+  const items = nextChallenges(stats);
+  if (items.length === 0) return /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Every badge unlocked — impressive.");
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-challenges" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption cl-pv-caption", style: { marginTop: 6 } }, "Next badge to unlock"), items.map((c, i) => {
+    const Icon = c.icon;
+    return /* @__PURE__ */ React.createElement("div", { key: c.id, className: i === 0 ? "cl-challenge first" : "cl-challenge" }, /* @__PURE__ */ React.createElement("div", { className: "cl-challenge-icon" }, /* @__PURE__ */ React.createElement(Icon, { size: 18 })), /* @__PURE__ */ React.createElement("div", { className: "cl-challenge-main" }, /* @__PURE__ */ React.createElement("b", null, c.title), /* @__PURE__ */ React.createElement("div", { className: "cl-goal-bar" }, /* @__PURE__ */ React.createElement("i", { style: { width: `${Math.min(100, Math.max(3, c.frac * 100))}%` } })), /* @__PURE__ */ React.createElement("small", null, c.text)));
+  }));
+}
+function notifText(e, profiles) {
+  const who = (profiles[e.actor] && profiles[e.actor].name) || "Someone";
+  const t = (e.title || "").slice(0, 40);
+  if (e.type === "like") return `${who} liked ${e.targetKind === "log" ? `your log "${t}"` : "your post"}`;
+  if (e.type === "comment") return `${who} commented: "${(e.text || "").slice(0, 60)}"`;
+  if (e.type === "follow") return `${who} started following you`;
+  if (e.type === "join") return `${who} joined your session${t ? ` at ${t}` : ""}`;
+  if (e.type === "invite") return `${who} invited you to a session${t ? ` at ${t}` : ""}`;
+  return who;
+}
+function NotificationsTab({ events, profiles, viewReadAt, perm, onEnable, onOpen }) {
+  const icons = { like: Heart, comment: MessageCircle, follow: UserPlus, join: CalendarDays, invite: CalendarDays };
+  const row = (e) => {
+    const Ic = icons[e.type] || Bell;
+    const p = profiles[e.actor];
+    return /* @__PURE__ */ React.createElement("button", { key: e.id, className: e.ts > viewReadAt ? "cl-notif unread" : "cl-notif", onClick: () => onOpen(e) }, /* @__PURE__ */ React.createElement("div", { className: "cl-notif-ava" }, /* @__PURE__ */ React.createElement(Avatar, { name: (p && p.name) || "?", photo: p && p.photo, size: 38 }), /* @__PURE__ */ React.createElement("span", { className: `cl-notif-type ${e.type}` }, /* @__PURE__ */ React.createElement(Ic, { size: 10 }))), /* @__PURE__ */ React.createElement("div", { className: "cl-notif-body" }, /* @__PURE__ */ React.createElement("span", null, notifText(e, profiles)), /* @__PURE__ */ React.createElement("small", null, timeAgo(e.ts))), e.ts > viewReadAt && /* @__PURE__ */ React.createElement("i", { className: "cl-notif-dot" }));
+  };
+  const fresh = events.filter((e) => e.ts > viewReadAt);
+  const older = events.filter((e) => e.ts <= viewReadAt);
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, /* @__PURE__ */ React.createElement("div", { className: "cl-notif-head" }, /* @__PURE__ */ React.createElement("h2", null, "Notifications")), perm === "default" && /* @__PURE__ */ React.createElement("div", { className: "cl-notif-enable" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, "Get alerts on this phone"), /* @__PURE__ */ React.createElement("small", null, "Likes, comments and session updates, while the app is open or in the background.")), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { marginTop: 0, width: "auto", padding: "9px 14px" }, onClick: onEnable }, "Turn on")), perm === "denied" && /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { padding: "0 16px" } }, "Alerts are blocked in your browser settings for this app."), events.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nothing yet. Likes, comments, new followers and session updates will show up here."), fresh.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption cl-notif-cap" }, "New"), fresh.map(row), older.length > 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption cl-notif-cap" }, "Earlier"), older.map(row));
+}
 function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, commentsMap, addLog, addComment, toggleKudo, deleteLog, addTry, togglePrivacy, toggleSave, loading, onOpenProfile, onOpenQR, onOpenSettings, onEnlarge, onOpenNewPost, onOpenNewSocialPost, onLiveLog, onShare, onShareProfile, onShareBadge, onShareToday, onShareDay, onShareProgress, onOpenDay, onShareToPost, onOpenLogDetail }) {
   const [showSearch, setShowSearch] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -2754,7 +2827,7 @@ function HomeTab({ me, profile, saveProfile, allProfiles, refreshAll, logs, comm
   return /* @__PURE__ */ React.createElement("div", { className: "cl-tab" }, h("div", { className: "cl-profile" }, h("div", { className: "cl-profile-top" }, h(Avatar, { name: profile.name, photo: profile.photo, size: 78 }), h("div", { className: "cl-profile-stats" }, h("div", { className: "cl-id-stat" }, h("b", null, climbLogs.length), h("span", null, "logs")), h("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "followers" ? null : "followers") }, h("b", null, followerSlugs.length), h("span", null, "followers")), h("button", { className: "cl-id-stat cl-stat-btn", onClick: () => setShowFollowers(showFollowers === "following" ? null : "following") }, h("b", null, followingSlugs.length), h("span", null, "following")))), h("div", { className: "cl-profile-name" }, profile.name), infoParts && h("div", { className: "cl-profile-line" }, infoParts), h("div", { className: "cl-profile-actions" }, h("button", { className: "cl-btn-ghost", onClick: onOpenSettings }, "Edit profile"), h("button", { className: "cl-btn-ghost", onClick: onShareProfile }, "Share profile"))), showFollowers && /* @__PURE__ */ React.createElement("div", { className: "cl-crew-grid", style: { marginTop: 10 } }, (showFollowers === "followers" ? followerSlugs : followingSlugs).length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, "Nobody yet."), (showFollowers === "followers" ? followerSlugs : followingSlugs).map((s) => {
     const p = allProfiles[s];
     return p ? /* @__PURE__ */ React.createElement("button", { className: "cl-crew-card", key: s, onClick: () => onOpenProfile(s), style: { textAlign: "left", cursor: "pointer", border: "1px solid var(--line)" } }, /* @__PURE__ */ React.createElement(Avatar, { name: p.name, photo: p.photo, size: 30 }), /* @__PURE__ */ React.createElement("div", { className: "cl-crew-name" }, p.name)) : null;
-  })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "progress" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("progress"), role: "tab", "aria-selected": view === "progress" }, "Progress")), view === "records" && /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar-tools" }, /* @__PURE__ */ React.createElement("button", { className: showSearch ? "cl-tabbar-icon active" : "cl-tabbar-icon", onClick: () => setShowSearch((v) => !v), "aria-label": "Search" }, /* @__PURE__ */ React.createElement(Search, { size: 18 })))), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-search-wrap" }, /* @__PURE__ */ React.createElement(Search, { size: 15 }), /* @__PURE__ */ React.createElement("input", { className: "cl-input", style: { paddingLeft: 30 }, placeholder: "Search by title or gym\u2026", value: query, onChange: (e) => setQuery(e.target.value) })), showSearch && /* @__PURE__ */ React.createElement("div", { className: "cl-filter-grid" }, /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: statusFilter, onChange: (e) => setStatusFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "Any status"), Object.keys(STATUS_LABELS).map((s) => /* @__PURE__ */ React.createElement("option", { key: s, value: s }, STATUS_LABELS[s]))), /* @__PURE__ */ React.createElement("select", { className: "cl-input cl-select", value: typeFilter, onChange: (e) => setTypeFilter(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "all" }, "All types"), TYPES.map((t) => /* @__PURE__ */ React.createElement("option", { key: t, value: t }, TYPE_LABELS[t])))), showSearch && view === "records" && h("button", { className: "cl-btn-ghost cl-view-toggle", onClick: () => setLogViewMode(logViewMode === "list" ? "grid" : "list") }, logViewMode === "list" ? h(LayoutGrid, { size: 14 }) : h(ListIcon, { size: 14 }), logViewMode === "list" ? " Show as grid" : " Show as list"), view === "progress" && h("div", { className: "cl-progress-view" }, h("p", { className: "cl-section-caption cl-pv-caption", style: { marginTop: 6 } }, "This month"), h("div", { className: "cl-trend-grid" }, [[trends.sessions, trends.sessions === 1 ? "session" : "sessions", `${trends.lastSessions} last month`], [trends.climbs, trends.climbs === 1 ? "climb" : "climbs", ""], [formatDuration(trends.minutes) || "0min", "time", ""], [trends.streak, trends.streak === 1 ? "week streak" : "week streak", ""]].map(([v, l, sub]) => h("div", { className: "cl-trend-card", key: l }, h("b", null, v), h("span", null, l), sub && h("small", null, sub)))), h("div", { className: "cl-goal-box" }, h("div", { className: "cl-goal-head" }, h("span", null, "Monthly goal"), h("div", { className: "cl-stepper" }, h("button", { type: "button", onClick: () => setGoalN(goalN - 1), "aria-label": "Fewer sessions" }, "\u2212"), h("b", null, goalN > 0 ? `${goalN} sessions` : "Not set"), h("button", { type: "button", onClick: () => setGoalN(goalN + 1), "aria-label": "More sessions" }, "+"))), goalN > 0 && h("div", { className: "cl-goal-bar" }, h("i", { style: { width: `${Math.min(100, trends.sessions / goalN * 100)}%` } })), goalN > 0 && h("small", { className: "cl-hint" }, trends.sessions >= goalN ? "Goal reached \u2014 nice." : `${goalN - trends.sessions} to go this month`)), (trends.hardestBoulder || trends.hardestRoute) && h("p", { className: "cl-hint", style: { margin: "10px 0 0" } }, "Hardest sent this year: ", [trends.hardestBoulder ? `Boulder ${boulderLabel(trends.hardestBoulder)}` : null, trends.hardestRoute ? `Route ${usGrade(trends.hardestRoute)}` : null].filter(Boolean).join("  \u00B7  ")), h("div", { className: "cl-training-stats" }, h("span", { className: "cl-training-stat" }, h(CheckCircle2, { size: 12 }), h("b", null, stats.totalSent), " sent"), stats.onsightCount > 0 && h("span", { className: "cl-training-stat" }, h(Zap, { size: 12 }), h("b", null, stats.onsightCount), " onsight"), stats.flashCount > 0 && h("span", { className: "cl-training-stat" }, h(Zap, { size: 12 }), h("b", null, stats.flashCount), " flash"), trackedTypes.map((t) => { const Icon = TYPE_ICONS[t]; const count = stats[`${t}Count`]; const mins = stats.minutesByType[t]; const val = statMetric === "count" ? count : statMetric === "hours" ? formatDuration(mins) || "0min" : `${count} \u00B7 ${formatDuration(mins) || "0min"}`; return h("span", { className: "cl-training-stat", key: t }, h(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", h("b", null, val)); })), h(ProgressCharts, { mine: climbLogs, onShare: onShareProgress }), h("p", { className: "cl-section-caption cl-pv-caption" }, "Badges  ", earnedCount, "/", badges.length), h(BadgesGrid, { stats, onShareBadge }), h("p", { className: "cl-section-caption cl-pv-caption" }, "About"), h("div", { className: "cl-about" }, h("p", { className: "cl-sub" }, "@", profile.username || profile.slug.slice(0, 8), profile.since ? `  \u00B7  Climbing since ${new Date(profile.since + "-01").toLocaleDateString(void 0, { month: "short", year: "numeric" })} (${climbingDuration(profile.since)})` : ""), profile.qualifications && profile.qualifications.length > 0 && h("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => { const Ic = QUALIFICATION_ICONS[q] || GraduationCap; return h("span", { className: "cl-gear-pill cl-qual-pill", key: i }, h(Ic, { size: 11 }), " ", q); })), profile.gear && profile.gear.length > 0 && h("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => h("span", { className: "cl-gear-pill", key: i }, g))))), view !== "progress" && filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap + to start."), view === "records" && recordGroups.map((group, gi) => /* @__PURE__ */ React.createElement("div", { key: group.label, className: "cl-day-group" }, /* @__PURE__ */ React.createElement("div", { className: "cl-day-header-row" }, /* @__PURE__ */ React.createElement("button", { className: "cl-day-header-btn", onClick: () => onOpenDay(group.ts), "aria-label": `View ${group.label} summary` }, /* @__PURE__ */ React.createElement("span", { className: "cl-day-header" }, group.label), /* @__PURE__ */ React.createElement(ChevronRight, { size: 15 }))), logViewMode === "grid" ? /* @__PURE__ */ React.createElement("div", { className: "cl-record-grid" }, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordGridItem, { key: entry.id, entry, onOpen: onOpenLogDetail }))) : /* @__PURE__ */ React.createElement(React.Fragment, null, group.items.map((entry) => /* @__PURE__ */ React.createElement(RecordRow, { key: entry.id, entry, onOpen: onOpenLogDetail }))))), (view === "posts" || view === "saved") && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
+  })), /* @__PURE__ */ React.createElement("div", { className: "cl-tabbar" }, /* @__PURE__ */ React.createElement("div", { className: "cl-tabs", role: "tablist" }, /* @__PURE__ */ React.createElement("button", { className: view === "records" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("records"), role: "tab", "aria-selected": view === "records" }, "Log"), /* @__PURE__ */ React.createElement("button", { className: view === "progress" ? "cl-tbtab active" : "cl-tbtab", onClick: () => setView("progress"), role: "tab", "aria-selected": view === "progress" }, "Progress")), null), view === "progress" && h("div", { className: "cl-progress-view" }, h(NextChallenges, { stats }), h("p", { className: "cl-section-caption cl-pv-caption", style: { marginTop: 6 } }, "This month"), h("div", { className: "cl-trend-grid" }, [[trends.sessions, trends.sessions === 1 ? "session" : "sessions", `${trends.lastSessions} last month`], [trends.climbs, trends.climbs === 1 ? "climb" : "climbs", ""], [formatDuration(trends.minutes) || "0min", "time", ""], [trends.streak, trends.streak === 1 ? "week streak" : "week streak", ""]].map(([v, l, sub]) => h("div", { className: "cl-trend-card", key: l }, h("b", null, v), h("span", null, l), sub && h("small", null, sub)))), h("div", { className: "cl-goal-box" }, h("div", { className: "cl-goal-head" }, h("span", null, "Monthly goal"), h("div", { className: "cl-stepper" }, h("button", { type: "button", onClick: () => setGoalN(goalN - 1), "aria-label": "Fewer sessions" }, "\u2212"), h("b", null, goalN > 0 ? `${goalN} sessions` : "Not set"), h("button", { type: "button", onClick: () => setGoalN(goalN + 1), "aria-label": "More sessions" }, "+"))), goalN > 0 && h("div", { className: "cl-goal-bar" }, h("i", { style: { width: `${Math.min(100, trends.sessions / goalN * 100)}%` } })), goalN > 0 && h("small", { className: "cl-hint" }, trends.sessions >= goalN ? "Goal reached \u2014 nice." : `${goalN - trends.sessions} to go this month`)), (trends.hardestBoulder || trends.hardestRoute) && h("p", { className: "cl-hint", style: { margin: "10px 0 0" } }, "Hardest sent this year: ", [trends.hardestBoulder ? `Boulder ${boulderLabel(trends.hardestBoulder)}` : null, trends.hardestRoute ? `Route ${usGrade(trends.hardestRoute)}` : null].filter(Boolean).join("  \u00B7  ")), h("div", { className: "cl-training-stats" }, h("span", { className: "cl-training-stat" }, h(CheckCircle2, { size: 12 }), h("b", null, stats.totalSent), " sent"), stats.onsightCount > 0 && h("span", { className: "cl-training-stat" }, h(Zap, { size: 12 }), h("b", null, stats.onsightCount), " onsight"), stats.flashCount > 0 && h("span", { className: "cl-training-stat" }, h(Zap, { size: 12 }), h("b", null, stats.flashCount), " flash"), trackedTypes.map((t) => { const Icon = TYPE_ICONS[t]; const count = stats[`${t}Count`]; const mins = stats.minutesByType[t]; const val = statMetric === "count" ? count : statMetric === "hours" ? formatDuration(mins) || "0min" : `${count} \u00B7 ${formatDuration(mins) || "0min"}`; return h("span", { className: "cl-training-stat", key: t }, h(Icon, { size: 12 }), " ", TYPE_LABELS[t], " ", h("b", null, val)); })), h(ProgressCharts, { mine: climbLogs, onShare: onShareProgress }), h("p", { className: "cl-section-caption cl-pv-caption" }, "Badges  ", earnedCount, "/", badges.length), h(BadgesGrid, { stats, onShareBadge }), h("p", { className: "cl-section-caption cl-pv-caption" }, "About"), h("div", { className: "cl-about" }, h("p", { className: "cl-sub" }, "@", profile.username || profile.slug.slice(0, 8), profile.since ? `  \u00B7  Climbing since ${new Date(profile.since + "-01").toLocaleDateString(void 0, { month: "short", year: "numeric" })} (${climbingDuration(profile.since)})` : ""), profile.qualifications && profile.qualifications.length > 0 && h("div", { className: "cl-gear-row" }, profile.qualifications.map((q, i) => { const Ic = QUALIFICATION_ICONS[q] || GraduationCap; return h("span", { className: "cl-gear-pill cl-qual-pill", key: i }, h(Ic, { size: 11 }), " ", q); })), profile.gear && profile.gear.length > 0 && h("div", { className: "cl-gear-row" }, profile.gear.map((g, i) => h("span", { className: "cl-gear-pill", key: i }, g))))), view !== "progress" && filteredLogs.length === 0 && /* @__PURE__ */ React.createElement("p", { className: "cl-empty" }, view === "saved" ? "No saved posts yet." : "Nothing logged yet. Tap the logo below to start."), view === "records" && recordGroups.map((group) => React.createElement(DayRow, { key: group.dateKey, group, summary: computeDaySummary(logs, me, group.ts), onOpen: onOpenDay })), (view === "posts" || view === "saved") && filteredLogs.map((entry) => /* @__PURE__ */ React.createElement(
     PostCard,
     {
       key: entry.id,
@@ -2925,6 +2998,10 @@ function ChalklineApp() {
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState("home");
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [notifs, setNotifs] = useState({ events: [], readAt: 0 });
+  const [viewReadAt, setViewReadAt] = useState(0);
+  const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+  const notifState = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [showPeopleSearch, setShowPeopleSearch] = useState(false);
@@ -3406,6 +3483,84 @@ function ChalklineApp() {
       setSharedPostError("That post isn't available anymore.");
       setTimeout(() => setSharedPostError(""), 3e3);
     }
+  };
+  const notifKey = me ? `chalkline_notif:${me}` : null;
+  useEffect(() => {
+    if (!notifKey) return;
+    let st = null;
+    try { st = JSON.parse(localStorage.getItem(notifKey) || "null"); } catch {}
+    notifState.current = st;
+    setNotifs(st ? { events: st.events || [], readAt: st.readAt || 0 } : { events: [], readAt: 0 });
+  }, [notifKey]);
+  useEffect(() => {
+    if (!notifKey || !hasLoadedOnce || !profiles[me]) return;
+    const prev = notifState.current;
+    const old = prev && prev.snap;
+    const now = Date.now();
+    const union = (a, b) => [.../* @__PURE__ */ new Set([...(a || []), ...(b || [])])];
+    const snap = { kudos: {}, followers: [], parts: {}, invited: [], cids: [] };
+    const found = [];
+    const mineLogs = logs.filter((l) => l.authorSlug === me && l.kind !== "deal");
+    mineLogs.forEach((l) => {
+      const cur = (l.kudos || []).filter((k) => k !== me);
+      const before = (old && old.kudos[l.id]) || [];
+      snap.kudos[l.id] = union(before, cur);
+      if (old) cur.filter((k) => !before.includes(k)).forEach((k) => found.push({ id: `like:${l.id}:${k}`, type: "like", ts: now, actor: k, targetId: l.id, targetKind: l.kind === "climb" ? "log" : "post", title: l.title || l.caption || "" }));
+    });
+    const followers = Object.values(profiles).filter((pr) => pr.slug !== me && (pr.following || []).includes(me)).map((pr) => pr.slug);
+    snap.followers = union(old && old.followers, followers);
+    if (old) followers.filter((f) => !old.followers.includes(f)).forEach((f) => found.push({ id: `follow:${f}`, type: "follow", ts: now, actor: f }));
+    sessions.forEach((sn) => {
+      if (sn.creatorSlug === me) {
+        const cur = (sn.participants || []).filter((x) => x !== me);
+        const before = (old && old.parts[sn.id]) || [];
+        snap.parts[sn.id] = union(before, cur);
+        if (old) cur.filter((x) => !before.includes(x)).forEach((x) => found.push({ id: `join:${sn.id}:${x}`, type: "join", ts: now, actor: x, targetId: sn.id, title: sn.gym }));
+      } else if ((sn.invited || []).includes(me)) {
+        snap.invited.push(sn.id);
+        if (old && !old.invited.includes(sn.id)) found.push({ id: `invite:${sn.id}`, type: "invite", ts: sn.createdAt || now, actor: sn.creatorSlug, targetId: sn.id, title: sn.gym });
+      }
+    });
+    snap.invited = union(old && old.invited, snap.invited);
+    const targets = [...mineLogs.map((l) => ({ id: l.id, kind: l.kind === "climb" ? "log" : "post", title: l.title || l.caption || "" })), ...sessions.filter((sn) => sn.creatorSlug === me).map((sn) => ({ id: sn.id, kind: "session", title: sn.gym }))];
+    const cids = [];
+    targets.forEach((t) => (commentsMap[t.id] || []).forEach((c) => {
+      if (c.authorSlug === me) return;
+      const cid = `${t.id}:${c.timestamp}:${c.authorSlug}`;
+      cids.push(cid);
+      if (old && !old.cids.includes(cid)) found.push({ id: `comment:${cid}`, type: "comment", ts: c.timestamp || now, actor: c.authorSlug, targetId: t.id, targetKind: t.kind, title: t.title, text: c.text });
+    }));
+    snap.cids = union(old && old.cids, cids);
+    const have = new Set(((prev && prev.events) || []).map((e) => e.id));
+    const fresh = found.filter((e) => !have.has(e.id));
+    const events = [...fresh, ...((prev && prev.events) || [])].sort((a, b) => b.ts - a.ts).slice(0, 100);
+    const next = { since: prev && prev.since || now, readAt: prev ? prev.readAt || 0 : now, events, snap };
+    notifState.current = next;
+    try { localStorage.setItem(notifKey, JSON.stringify(next)); } catch {}
+    setNotifs({ events, readAt: next.readAt });
+    if (fresh.length && document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted" && navigator.serviceWorker) {
+      fresh.slice(0, 3).forEach((e) => navigator.serviceWorker.ready.then((reg) => reg.showNotification("Chalkline", { body: notifText(e, profiles), icon: "icons/icon-192.png", tag: e.id })).catch(() => {}));
+    }
+  }, [logs, commentsMap, sessions, profiles, hasLoadedOnce, me]);
+  useEffect(() => {
+    if (tab !== "alerts" || !notifState.current) return;
+    setViewReadAt(notifState.current.readAt || 0);
+    const next = { ...notifState.current, readAt: Date.now() };
+    notifState.current = next;
+    try { localStorage.setItem(notifKey, JSON.stringify(next)); } catch {}
+    setNotifs((n) => ({ ...n, readAt: next.readAt }));
+  }, [tab]);
+  const unreadCount = notifs.events.filter((e) => e.ts > notifs.readAt).length;
+  const openNotif = (e) => {
+    if (e.type === "follow") return openProfile(e.actor);
+    if (e.type === "join" || e.type === "invite" || e.targetKind === "session") return setTab("sessions");
+    const target = logs.find((l) => l.id === e.targetId);
+    if (!target) return;
+    if (target.kind === "climb") setViewingLogDetail(target);
+    else setViewingSharedPost(target);
+  };
+  const enableAlerts = async () => {
+    try { setNotifPerm(await Notification.requestPermission()); } catch {}
   };
   const myProfile = me ? profiles[me] : null;
   const themeMode = myProfile && myProfile.themeMode || "dark";
@@ -4160,6 +4315,34 @@ function ChalklineApp() {
         .cl-clip-video { width: 100%; margin-top: 6px; border-radius: 8px; background: #000; max-height: 360px; }
         .cl-clip-add { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); cursor: pointer; background: transparent; }
         .cl-clip-add:hover { border-color: var(--accent2); color: var(--accent2); }
+        .cl-dayrow .cl-lrow-chev { flex-shrink: 0; align-self: center; color: var(--ink-soft); }
+        .cl-challenges { margin-bottom: 4px; }
+        .cl-challenge { display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+        .cl-challenge.first { border-color: color-mix(in srgb, var(--accent2) 55%, transparent); background: color-mix(in srgb, var(--accent2) 8%, var(--surface)); }
+        .cl-challenge-icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--accent2) 16%, transparent); color: var(--accent2); flex-shrink: 0; }
+        .cl-challenge-main { flex: 1; min-width: 0; }
+        .cl-challenge-main b { font-size: 14px; }
+        .cl-challenge-main small { display: block; margin-top: 5px; font-size: 11.5px; color: var(--ink-soft); }
+        .cl-challenge-main .cl-goal-bar { margin-top: 6px; }
+        .cl-nav-badge { position: absolute; top: 2px; right: 8px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent2); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; line-height: 1; }
+        .cl-nav-fab svg { display: block; }
+        .cl-notif-head { padding: 4px 16px 8px; }
+        .cl-notif-head h2 { font-size: 20px; }
+        .cl-notif-cap { margin: 14px 16px 4px; }
+        .cl-notif { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: none; border: none; border-bottom: 1px solid var(--line); text-align: left; cursor: pointer; color: var(--ink); }
+        .cl-notif.unread { background: color-mix(in srgb, var(--accent2) 7%, transparent); }
+        .cl-notif-ava { position: relative; flex-shrink: 0; }
+        .cl-notif-type { position: absolute; right: -4px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--accent2); border: 2px solid var(--bg); }
+        .cl-notif-type.comment { background: #5A7FB8; }
+        .cl-notif-type.follow { background: var(--accent); }
+        .cl-notif-type.join, .cl-notif-type.invite { background: #C88A12; }
+        .cl-notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 14px; line-height: 1.35; }
+        .cl-notif-body small { color: var(--ink-soft); font-size: 11.5px; margin-top: 2px; }
+        .cl-notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); flex-shrink: 0; }
+        .cl-notif-enable { display: flex; align-items: center; gap: 12px; margin: 4px 16px 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+        .cl-notif-enable > div { flex: 1; }
+        .cl-notif-enable b { display: block; font-size: 14px; }
+        .cl-notif-enable small { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
       `), bootstrapping || me && !hasLoadedOnce ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me && guestUsername ? /* @__PURE__ */ React.createElement(GuestProfileView, { username: guestUsername, onGoToLogin: () => {
     setGuestUsername(null);
     try {
@@ -4236,7 +4419,7 @@ function ChalklineApp() {
       commentsMap,
       addComment
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowAddMenu(true), title: "Add", "aria-label": "Add" }, /* @__PURE__ */ React.createElement(Plus, { size: 24 })), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showAddMenu && /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: () => setShowAddMenu(false) }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, "Add"), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setLiveLogState({ continueEntry: null }); } }, /* @__PURE__ */ React.createElement(Zap, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "Live log"), /* @__PURE__ */ React.createElement("small", null, "Time attempts as you climb"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowNewPost(true); } }, /* @__PURE__ */ React.createElement(Layers, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New log"), /* @__PURE__ */ React.createElement("small", null, "Log a climb or a full day"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowSocialPost({}); } }, /* @__PURE__ */ React.createElement(Camera, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New post"), /* @__PURE__ */ React.createElement("small", null, "Share photos or gear with the crew"))))), viewingProfile && /* @__PURE__ */ React.createElement(
+  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowAddMenu(true), title: "Add", "aria-label": "Add" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showAddMenu && /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: () => setShowAddMenu(false) }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, "Add"), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setLiveLogState({ continueEntry: null }); } }, /* @__PURE__ */ React.createElement(Zap, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "Live log"), /* @__PURE__ */ React.createElement("small", null, "Time attempts as you climb"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowNewPost(true); } }, /* @__PURE__ */ React.createElement(Layers, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New log"), /* @__PURE__ */ React.createElement("small", null, "Log a climb or a full day"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowSocialPost({}); } }, /* @__PURE__ */ React.createElement(Camera, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New post"), /* @__PURE__ */ React.createElement("small", null, "Share photos or gear with the crew"))))), viewingProfile && /* @__PURE__ */ React.createElement(
     ProfileView,
     {
       slug: viewingProfile,

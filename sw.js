@@ -1,5 +1,5 @@
 // Chalkline service worker: makes the app installable and lets the shell load offline.
-const CACHE = "chalkline-v2";
+const CACHE = "chalkline-v3";
 const SHELL = ["./", "./index.html", "./chalkline.bundle.js", "./offline-store.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -38,4 +38,10 @@ self.addEventListener("fetch", (e) => {
       return res;
     }).catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
   );
+});
+
+// tapping a system notification brings the app to the front
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => (cs.length ? cs[0].focus() : self.clients.openWindow("./"))));
 });
