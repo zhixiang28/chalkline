@@ -52,6 +52,7 @@
   const SUPABASE_URL = "https://xoibulncwgassngzqfpp.supabase.co";
   const SUPABASE_KEY = "sb_publishable_pPwSLWgykG2QAzUHNisAiA_5iURHX_2";
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const OFFLINE_SIGNIN_DAYS = 30;
 
   window.supabaseAuth = {
     signUp(email, password) {
@@ -61,7 +62,7 @@
       return supabase.auth.signInWithPassword({ email, password });
     },
     signOut() {
-      try { localStorage.removeItem("chalkline_last_uid"); } catch {}
+      try { localStorage.removeItem("chalkline_last_uid"); localStorage.removeItem("chalkline_last_uid_at"); } catch {}
       return supabase.auth.signOut();
     },
     async getSession() {
@@ -69,14 +70,17 @@
       try {
         const res = await supabase.auth.getSession();
         const uid = res && res.data && res.data.session && res.data.session.user && res.data.session.user.id;
-        if (uid) { try { localStorage.setItem("chalkline_last_uid", uid); } catch {} return res; }
+        if (uid) { try { localStorage.setItem("chalkline_last_uid", uid); localStorage.setItem("chalkline_last_uid_at", String(Date.now())); } catch {} return res; }
         if (navigator.onLine === false) throw new Error("offline");
-        try { localStorage.removeItem("chalkline_last_uid"); } catch {}
+        try { localStorage.removeItem("chalkline_last_uid"); localStorage.removeItem("chalkline_last_uid_at"); } catch {}
         return res;
       } catch (err) {
-        let uid = null;
-        try { uid = localStorage.getItem("chalkline_last_uid"); } catch {}
-        if (uid && navigator.onLine === false) return { data: { session: { user: { id: uid } } }, error: null };
+        let uid = null, at = 0;
+        try { uid = localStorage.getItem("chalkline_last_uid"); at = Number(localStorage.getItem("chalkline_last_uid_at")) || 0; } catch {}
+        // offline you can only get back in on a device that signed in online recently
+        const fresh = at && Date.now() - at < OFFLINE_SIGNIN_DAYS * 864e5;
+        if (uid && navigator.onLine === false && fresh) return { data: { session: { user: { id: uid } } }, error: null };
+        if (uid && navigator.onLine === false) throw new Error("Offline for more than " + OFFLINE_SIGNIN_DAYS + " days — connect to the internet and sign in again.");
         throw err;
       }
     },
@@ -201,7 +205,11 @@
     },
   };
 
-  const offlineStore = createOfflineStore(rawStorage);
+  const offlineStore = createOfflineStore(rawStorage, {
+    hasSession: async () => { const { data } = await supabase.auth.getSession(); const s = data && data.session; return !!(s && s.access_token && (!s.expires_at || s.expires_at * 1000 > Date.now())); },
+  });
+  // once the user is signed in again (or the token refreshes), send whatever is waiting
+  supabase.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" || ev === "TOKEN_REFRESHED") setTimeout(() => offlineStore.flush(), 500); });
   window.storage = offlineStore;
   offlineStore.init();
   window.addEventListener("online", () => offlineStore.flush());
@@ -212,11 +220,18 @@
   pill.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 6px);z-index:9999;padding:5px 12px;border-radius:999px;font:600 12px Inter,system-ui,sans-serif;background:#F25A2C;color:#fff;display:none;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.35)";
   document.body.appendChild(pill);
   const updatePill = () => {
-    const n = offlineStore.pendingCount();
+    const n = offlineStore.pendingCount(), bad = offlineStore.failedCount();
     const off = navigator.onLine === false;
-    pill.style.display = off || n > 0 ? "block" : "none";
-    pill.textContent = off ? (n ? `Offline · ${n} change${n === 1 ? "" : "s"} waiting to sync` : "Offline · changes will sync later") : `Syncing ${n} change${n === 1 ? "" : "s"}…`;
+    const sign = offlineStore.needsSignIn();
+    pill.style.display = off || n > 0 || bad > 0 ? "block" : "none";
+    pill.style.pointerEvents = bad > 0 && !off ? "auto" : "none";
+    const s = (k) => (k === 1 ? "" : "s");
+    pill.textContent = off ? (n ? `Offline · ${n} change${s(n)} waiting to sync` : "Offline · changes will sync later")
+      : sign ? `${n} change${s(n)} saved on this phone — sign in again to sync`
+      : n > 0 ? `Syncing ${n} change${s(n)}…`
+      : `${bad} change${s(bad)} couldn't sync — tap to retry`;
   };
+  pill.addEventListener("click", () => { if (offlineStore.failedCount() > 0) offlineStore.retryFailed(); });
   offlineStore.subscribe(updatePill);
   window.addEventListener("online", updatePill);
   window.addEventListener("offline", updatePill);

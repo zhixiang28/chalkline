@@ -1,6 +1,6 @@
 // chalkline.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { BetaField, BetaPlayer, drawBeta, hasBeta } from "./beta.js";
+import { BetaField, BetaPlayer, drawBeta, drawStickFrame, groupMoves, hasBeta } from "./beta.js";
 import { TechniqueSheet } from "./technique.js";
 import {
   Mountain,
@@ -13,6 +13,7 @@ import {
   Send,
   ChevronRight,
   ChevronDown,
+  Link2,
   Heart,
   Trash2,
   Search,
@@ -887,7 +888,7 @@ function TimeChips({ hours, minutes, setHours, setMinutes }) {
   const quick = [1, 2, 5, 10, 20, 30, 60];
   return /* @__PURE__ */ React.createElement("div", { className: "cl-timechips" }, quick.map((m) => /* @__PURE__ */ React.createElement("button", { key: m, type: "button", className: total === m ? "cl-timechip active" : "cl-timechip", onClick: () => set(total === m ? 0 : m) }, m >= 60 ? "1h" : `${m}m`)), /* @__PURE__ */ React.createElement("label", { className: "cl-timechip-other" }, /* @__PURE__ */ React.createElement("input", { type: "number", inputMode: "numeric", min: "0", className: "cl-input", placeholder: "min", value: total > 0 ? total : "", onChange: (e) => set(Math.max(0, Math.min(1440, Number(e.target.value) || 0))) })));
 }
-function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry, onLogged }) {
+function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry, onLogged, onStartSession }) {
   const read = (k, d) => { try { return localStorage.getItem("chalkline_ql_" + k) || d; } catch { return d; } };
   const [type, setType] = useState(read("type", "boulder"));
   const [grade, setGrade] = useState(read("grade", "V2"));
@@ -902,7 +903,7 @@ function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry
   const today = new Date().toDateString();
   const mine = logs.filter((l) => l.authorSlug === me && l.kind === "climb");
   const todayCount = mine.filter((l) => (l.updates || []).some((u) => new Date(u.timestamp).toDateString() === today)).length;
-  const recent = mine.filter((l) => l.postType === "project" && Date.now() - (l.updatedAt || l.createdAt || 0) < 21 * 864e5 && !(l.updates || []).some((u) => (u.climbs || []).some((c) => c.status === "sent"))).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 5);
+  const recent = mine.filter((l) => l.postType === "project" && Date.now() - (l.updatedAt || l.createdAt || 0) < 60 * 864e5).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 8);
   const pickProject = (l) => {
     if (project && project.id === l.id) { setProject(null); return; }
     const last = (l.updates || [])[l.updates.length - 1];
@@ -934,8 +935,8 @@ function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry
   };
   const stepper = (v, set) => /* @__PURE__ */ React.createElement("div", { className: "cl-stepper" }, /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => set(Math.max(1, v - 1)), "aria-label": "Fewer attempts" }, "−"), /* @__PURE__ */ React.createElement("b", null, v), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => set(Math.min(99, v + 1)), "aria-label": "More attempts" }, "+"));
   return /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: onClose }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet cl-ql-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }),
-    /* @__PURE__ */ React.createElement("div", { className: "cl-ql-head" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, "Quick log"), editGym ? /* @__PURE__ */ React.createElement("input", { className: "cl-input cl-ql-gyminput", value: gym, list: "cl-gyms-ql", autoFocus: true, onChange: (e) => setGym(e.target.value), onBlur: () => setEditGym(false) }) : /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-ql-gym", onClick: () => setEditGym(true) }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", gym, " · ", todayCount, " logged today ✎"), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms-ql" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g })))), /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, /* @__PURE__ */ React.createElement(X, { size: 18 }))),
-    recent.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-ql-cap" }, "Still working on…"), /* @__PURE__ */ React.createElement("div", { className: "cl-ql-recent" }, recent.map((l) => /* @__PURE__ */ React.createElement("button", { key: l.id, type: "button", className: project && project.id === l.id ? "cl-ql-proj active" : "cl-ql-proj", onClick: () => pickProject(l) }, l.title)))),
+    /* @__PURE__ */ React.createElement("div", { className: "cl-ql-head" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, "Quick log"), editGym ? /* @__PURE__ */ React.createElement("input", { className: "cl-input cl-ql-gyminput", value: gym, list: "cl-gyms-ql", autoFocus: true, onChange: (e) => setGym(e.target.value), onBlur: () => setEditGym(false) }) : /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-ql-gym", onClick: () => setEditGym(true) }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", gym, " · ", todayCount, " logged today ✎"), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms-ql" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g })))), !session && onStartSession && React.createElement("button", { type: "button", className: "cl-ql-timer", onClick: onStartSession }, React.createElement(Clock, { size: 13 }), " Start timer"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, /* @__PURE__ */ React.createElement(X, { size: 18 }))),
+    recent.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-ql-cap" }, "Same wall as before? Tap to add another attempt"), /* @__PURE__ */ React.createElement("div", { className: "cl-ql-recent" }, recent.map((l) => /* @__PURE__ */ React.createElement("button", { key: l.id, type: "button", className: project && project.id === l.id ? "cl-ql-proj active" : "cl-ql-proj", onClick: () => pickProject(l) }, l.title, " \u00B7 ", new Date(l.updatedAt || l.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric" }))))),
     /* @__PURE__ */ React.createElement(TypeSelector, { value: type, onChange: changeType }),
     /* @__PURE__ */ React.createElement(GradeSelector, { type, grade, onChange: setGrade }),
     /* @__PURE__ */ React.createElement("div", { className: "cl-ql-result" }, [["flash", "Flash", "first try"], ["sent", "Sent", "got it"], ["trying", "Not yet", "still trying"]].map(([v, l, sub]) => /* @__PURE__ */ React.createElement("button", { key: v, type: "button", className: result === v ? `cl-ql-res active ${v}` : "cl-ql-res", onClick: () => setResult(v) }, /* @__PURE__ */ React.createElement("b", null, l), /* @__PURE__ */ React.createElement("small", null, sub)))),
@@ -1027,8 +1028,21 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })(), onChange: (e) => setEntryDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent (optional)"), React.createElement(TimeChips, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo (optional \u2014 add it later if you like)"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && React.createElement(BetaField, { photo, beta, onChange: setBeta })), React.createElement("button", { type: "button", className: "cl-more-toggle", onClick: () => setMoreOpen((v) => !v) }, moreOpen ? "Hide details" : "More details \u2014 notes, technique, rating, goal"), moreOpen && React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "Next time try (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: nextTime, onChange: (e) => setNextTime(e.target.value), placeholder: "e.g. Left heel hook on move 3" })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add your own" }), React.createElement(TechniqueGuideLink, null), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), ), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
 }
-function NewPostForm({ defaultGym, onCancel, onSaveLog }) {
-  return /* @__PURE__ */ React.createElement(LogForm, { initial: { gym: defaultGym }, onCancel, onSave: onSaveLog });
+function SameWallPicker({ logs, linked, onPick }) {
+  const [open, setOpen] = useState(false);
+  const list = (logs || []).filter((l) => l.kind === "climb" && l.postType === "project").sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 15);
+  if (!list.length) return null;
+  const fmt = (l) => new Date(l.updatedAt || l.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric" });
+  const tries = (l) => (l.updates || []).reduce((n, u) => n + (u.climbs || []).reduce((m, c) => m + (c.attempts || 1), 0), 0);
+  if (linked) return React.createElement("div", { className: "cl-samewall linked" }, React.createElement(Link2, { size: 15 }), React.createElement("span", null, "Counts as a new attempt on ", React.createElement("b", null, linked.title), " (same wall)"), React.createElement("button", { type: "button", onClick: () => onPick(null) }, "Unlink"));
+  return React.createElement("div", { className: "cl-samewall" }, React.createElement("button", { type: "button", className: "cl-samewall-toggle", onClick: () => setOpen(!open) }, React.createElement(Link2, { size: 15 }), " Same wall as a previous log?", React.createElement(ChevronDown, { size: 15, style: { marginLeft: "auto", transform: open ? "rotate(180deg)" : "none" } })), open && React.createElement("div", { className: "cl-attach-log-list" }, list.map((l) => React.createElement("button", { key: l.id, type: "button", className: "cl-attach-log-row", onClick: () => { onPick(l); setOpen(false); } }, l.photo ? React.createElement("img", { src: l.photo, alt: "", className: "cl-attach-log-thumb" }) : React.createElement("div", { className: "cl-attach-log-thumb cl-attach-log-thumb-empty" }, React.createElement(Mountain, { size: 16 })), React.createElement("div", { className: "cl-attach-log-info" }, React.createElement("span", { className: "cl-attach-log-title" }, l.title), React.createElement("span", { className: "cl-attach-log-meta" }, l.gym, " \u00B7 ", fmt(l), " \u00B7 ", tries(l), " tries"))))));
+}
+function NewPostForm({ defaultGym, logs, onCancel, onSaveLog, onAddTry }) {
+  const [linked, setLinked] = useState(null);
+  const last = linked && (linked.updates || [])[linked.updates.length - 1];
+  const lc = last && last.climbs && last.climbs[0];
+  const initial = linked ? { gym: linked.gym, title: linked.title, wall: linked.wall, photo: linked.photo, ...lc ? { climbs: [{ ...lc, status: "trying", attempts: 1 }] } : {} } : { gym: defaultGym };
+  return React.createElement(React.Fragment, null, React.createElement(SameWallPicker, { logs, linked, onPick: setLinked }), React.createElement(LogForm, { key: linked ? linked.id : "new", initial, onCancel, onSave: (data) => linked ? onAddTry(linked.id, { ...data, photo: void 0 }) : onSaveLog(data) }));
 }
 function GearEditor({ gear, setGear }) {
   const [val, setVal] = useState("");
@@ -1784,13 +1798,14 @@ function clProgressModel(d) {
     fallbackColor: "#2E3028"
   };
 }
-function drawFullPhotoDesign(ctx, W, H, data, img, bg) {
+function drawFullPhotoDesign(ctx, W, H, data, img, bg, strip) {
   const m = clLogModel(data);
   const base = bg || "#161712";
   const t = clTheme(clIsLight(base));
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, W, H);
-  const areaX = 30, areaY = 30, areaW = W - 60, areaH = 590;
+  const showStrip = !!(strip && img && hasBeta(data.beta));
+  const areaX = 30, areaY = 30, areaW = W - 60, areaH = showStrip ? 400 : 590;
   if (img) {
     const scale = Math.min(areaW / img.width, areaH / img.height);
     const sw = img.width * scale, sh = img.height * scale;
@@ -1815,6 +1830,12 @@ function drawFullPhotoDesign(ctx, W, H, data, img, bg) {
     pts.start.forEach((p) => drawDot(p.x, p.y, "S", "#6B8E4E"));
     pts.end.forEach((p) => drawDot(p.x, p.y, "E", "#C4501F"));
     (pts.fall || []).forEach((p, i) => drawDot(p.x, p.y, String(i + 1), "#D4A017"));
+    if (showStrip) {
+      const n = groupMoves(data.beta.moves).length;
+      const picks = n <= 3 ? Array.from({ length: n }, (_, i) => i + 1) : [1, Math.ceil(n / 2), n];
+      const gap = 10, fw = (areaW - gap * (picks.length - 1)) / picks.length, fy = areaY + areaH + 12;
+      picks.forEach((s, i) => drawStickFrame(ctx, areaX + i * (fw + gap), fy, fw, 178, img, data.beta, s, `Step ${s}`));
+    }
   } else {
     clRoundRect(ctx, areaX, areaY, areaW, areaH, 18);
     ctx.fillStyle = m.fallbackColor;
@@ -1851,12 +1872,21 @@ function drawFullPhotoDesign(ctx, W, H, data, img, bg) {
 }
 var DAY_TYPE_COLORS = { boulder: "#C4501F", toprope: "#6B8E4E", lead: "#3A4A63", other: "#8A8578" };
 var SUMMARY_DESIGNS = [
+  { id: "strava", label: "Overlay stats" },
   { id: "blur", label: "Blurred" },
-  { id: "card", label: "Photo card" },
-  { id: "clear", label: "Transparent" },
-  { id: "strava", label: "Overlay stats" }
+  { id: "clear", label: "Transparent" }
 ];
-var LOG_DESIGNS = [...SUMMARY_DESIGNS, { id: "full", label: "Full photo" }];
+var LOG_DESIGNS = [
+  { id: "strava", label: "Overlay stats" },
+  { id: "full", label: "Photo" },
+  { id: "clear", label: "Transparent" }
+];
+function clRenderSummaryDesign(ctx, W, H, design, model, data, img, cardBg) {
+  if (design === "full") drawFullPhotoDesign(ctx, W, H, data, img, cardBg, true);
+  else if (design === "clear") drawSummaryClear(ctx, W, H, model, img, cardBg);
+  else if (design === "strava") drawSummaryOverlay(ctx, W, H, model, img);
+  else drawSummaryBlurred(ctx, W, H, model, img, cardBg);
+}
 var CARD_SWATCHES = [null, "#F4F1E8", "#FFFFFF", "#22241F", "#1F3A5F", "#6B4C93", "#C4501F", "#D4A017"];
 function clIsLight(hex) {
   if (!hex) return false;
@@ -2444,7 +2474,11 @@ function drawNameTagFooter(ctx, W, H, qrImg) {
   ctx.fillStyle = "rgba(255,255,255,0.6)";
   ctx.fillText("CHALKLINE", 34, H - 34);
 }
+function clSummarySrc(design, customBg, heroPhoto, data) {
+  return design === "clear" ? customBg : design === "blur" || design === "strava" ? heroPhoto || data.photo : design === "full" ? data.photo : heroPhoto;
+}
 function ShareCardModal({ data, onClose }) {
+  const [thumbs, setThumbs] = useState({});
   const canvasRef = useRef();
   const [imgUrl, setImgUrl] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -2454,8 +2488,8 @@ function ShareCardModal({ data, onClose }) {
   const isBadgeCard = data.variant === "badge";
   const isProgress = data.variant === "progress";
   const isSummary = isToday || isLog || isBadgeCard || isProgress;
-  const designs = isProfile ? NAME_TAG_DESIGNS : isLog ? LOG_DESIGNS : isSummary ? SUMMARY_DESIGNS : SHARE_DESIGNS;
-  const [design, setDesign] = useState(isProfile ? "blurred" : isToday || isLog ? "strava" : isSummary ? "blur" : "badge");
+  const designs = isProfile ? NAME_TAG_DESIGNS : isLog ? (hasBeta(data.beta) ? LOG_DESIGNS.map((d) => d.id === "full" ? { ...d, label: "Beta" } : d) : LOG_DESIGNS) : isSummary ? SUMMARY_DESIGNS : SHARE_DESIGNS;
+  const [design, setDesign] = useState(isProfile ? "blurred" : isLog && hasBeta(data.beta) ? "full" : isToday || isLog ? "strava" : isSummary ? "blur" : "badge");
   const [customBg, setCustomBg] = useState(null);
   const [cardBg, setCardBg] = useState(null);
   useEffect(() => {
@@ -2499,14 +2533,10 @@ function ShareCardModal({ data, onClose }) {
       const model = isToday ? clDayModel(data) : isBadgeCard ? clBadgeModel(data) : isProgress ? clProgressModel(data) : clLogModel(data);
       const heroPhoto = isToday ? data.bestPhoto : isLog ? data.photo : null;
       const renderCard = (img2) => {
-        if (design === "full") drawFullPhotoDesign(ctx, W, H, data, img2, cardBg);
-        else if (design === "card") drawSummaryPhotoCard(ctx, W, H, model, img2, cardBg);
-        else if (design === "clear") drawSummaryClear(ctx, W, H, model, img2, cardBg);
-        else if (design === "strava") drawSummaryOverlay(ctx, W, H, model, img2);
-        else drawSummaryBlurred(ctx, W, H, model, img2, cardBg);
+        clRenderSummaryDesign(ctx, W, H, design, model, data, img2, cardBg);
         finish();
       };
-      const src = design === "clear" ? customBg : design === "blur" || design === "strava" ? heroPhoto || data.photo : heroPhoto;
+      const src = clSummarySrc(design, customBg, heroPhoto, data);
       if (src) {
         const img = new Image();
         img.onload = () => renderCard(img);
@@ -2532,6 +2562,29 @@ function ShareCardModal({ data, onClose }) {
       render(null);
     }
   }, [data, design, customBg, cardBg]);
+  useEffect(() => {
+    if (!isSummary) return void 0;
+    let dead = false;
+    const model = isToday ? clDayModel(data) : isBadgeCard ? clBadgeModel(data) : isProgress ? clProgressModel(data) : clLogModel(data);
+    const heroPhoto = isToday ? data.bestPhoto : isLog ? data.photo : null;
+    designs.forEach((d) => {
+      const go = (img) => {
+        if (dead) return;
+        const full = document.createElement("canvas");
+        full.width = 800; full.height = 1e3;
+        clRenderSummaryDesign(full.getContext("2d"), 800, 1e3, d.id, model, data, img, cardBg);
+        const sm = document.createElement("canvas");
+        sm.width = 160; sm.height = 200;
+        const sc = sm.getContext("2d");
+        sc.fillStyle = "#2a2a2a"; sc.fillRect(0, 0, 160, 200);
+        sc.drawImage(full, 0, 0, 160, 200);
+        setThumbs((t) => ({ ...t, [d.id]: sm.toDataURL("image/jpeg", 0.8) }));
+      };
+      const src = clSummarySrc(d.id, customBg, heroPhoto, data);
+      if (src) { const im = new Image(); im.onload = () => go(im); im.onerror = () => go(null); im.src = src; } else go(null);
+    });
+    return () => { dead = true; };
+  }, [data, customBg, cardBg]);
   const download = async () => {
     try {
       const res = await fetch(imgUrl);
@@ -2568,7 +2621,7 @@ function ShareCardModal({ data, onClose }) {
     } catch {
     }
   };
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), copied && /* @__PURE__ */ React.createElement("p", { className: "cl-copied-toast" }, "Link copied to clipboard"), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, /* @__PURE__ */ React.createElement("div", { className: "cl-segmented cl-design-picker", role: "tablist" }, designs.map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-segment active" : "cl-segment", onClick: () => setDesign(d.id), role: "tab", "aria-selected": design === d.id }, d.label))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: isSummary && design === "clear" && !customBg && !cardBg ? "cl-share-preview cl-share-transparent" : "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), isSummary && /* @__PURE__ */ React.createElement("div", { className: "cl-swatches", role: "radiogroup", "aria-label": "Card background color" }, CARD_SWATCHES.map((c) => /* @__PURE__ */ React.createElement("button", { key: c || "auto", className: (cardBg === c ? "cl-swatch active" : "cl-swatch") + (c ? "" : " cl-swatch-auto"), style: c ? { background: c } : void 0, role: "radio", "aria-checked": cardBg === c, "aria-label": c ? `Background ${c}` : design === "clear" ? "No background" : "Default background", onClick: () => { setCardBg(c); if (c) setCustomBg(null); } }))), isSummary && design === "clear" && /* @__PURE__ */ React.createElement("div", { className: "cl-bg-options" }, /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { margin: "0 0 8px" } }, customBg ? customBg === data.photo ? "Using the climb's wall photo." : "Using your photo as the background." : cardBg ? "Solid color background." : "Transparent PNG \u2014 place it over any photo or story."), /* @__PURE__ */ React.createElement("div", { className: "cl-bg-buttons" }, /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", id: "cl-card-bg", className: "cl-file-hidden", onChange: async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setCustomBg(await resizeImage(f, 1200, 0.85)); setCardBg(null); e.target.value = ""; } }), /* @__PURE__ */ React.createElement("label", { htmlFor: "cl-card-bg", className: "cl-bg-btn" }, /* @__PURE__ */ React.createElement(Images, { size: 16 }), customBg && customBg !== data.photo ? " Change photo" : " My photo"), isLog && data.photo && customBg !== data.photo && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => { setCustomBg(data.photo); setCardBg(null); } }, /* @__PURE__ */ React.createElement(Mountain, { size: 16 }), " Wall photo"), customBg && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => setCustomBg(null) }, "Transparent"))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Share"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), copied && /* @__PURE__ */ React.createElement("p", { className: "cl-copied-toast" }, "Link copied to clipboard"), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body", style: { textAlign: "center" } }, !isSummary && /* @__PURE__ */ React.createElement("div", { className: "cl-segmented cl-design-picker", role: "tablist" }, designs.map((d) => /* @__PURE__ */ React.createElement("button", { key: d.id, className: design === d.id ? "cl-segment active" : "cl-segment", onClick: () => setDesign(d.id), role: "tab", "aria-selected": design === d.id }, d.label))), isSummary && React.createElement("div", { className: "cl-design-thumbs" }, designs.map((d) => React.createElement("button", { key: d.id, type: "button", className: design === d.id ? "cl-design-thumb active" : "cl-design-thumb", onClick: () => setDesign(d.id), "aria-label": d.label }, thumbs[d.id] ? React.createElement("img", { src: thumbs[d.id], alt: d.label }) : React.createElement("span", null, "\u2026"), React.createElement("small", null, d.label)))), /* @__PURE__ */ React.createElement("canvas", { ref: canvasRef, style: { display: "none" } }), imgUrl ? /* @__PURE__ */ React.createElement("img", { src: imgUrl, alt: "share card", className: isSummary && design === "clear" && !customBg && !cardBg ? "cl-share-preview cl-share-transparent" : "cl-share-preview" }) : /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Rendering\u2026"), isSummary && /* @__PURE__ */ React.createElement("div", { className: "cl-swatches", role: "radiogroup", "aria-label": "Card background color" }, CARD_SWATCHES.map((c) => /* @__PURE__ */ React.createElement("button", { key: c || "auto", className: (cardBg === c ? "cl-swatch active" : "cl-swatch") + (c ? "" : " cl-swatch-auto"), style: c ? { background: c } : void 0, role: "radio", "aria-checked": cardBg === c, "aria-label": c ? `Background ${c}` : design === "clear" ? "No background" : "Default background", onClick: () => { setCardBg(c); if (c) setCustomBg(null); } }))), isSummary && design === "clear" && /* @__PURE__ */ React.createElement("div", { className: "cl-bg-options" }, /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { margin: "0 0 8px" } }, customBg ? customBg === data.photo ? "Using the climb's wall photo." : "Using your photo as the background." : cardBg ? "Solid color background." : "Transparent PNG \u2014 place it over any photo or story."), /* @__PURE__ */ React.createElement("div", { className: "cl-bg-buttons" }, /* @__PURE__ */ React.createElement("input", { type: "file", accept: "image/*", id: "cl-card-bg", className: "cl-file-hidden", onChange: async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setCustomBg(await resizeImage(f, 1200, 0.85)); setCardBg(null); e.target.value = ""; } }), /* @__PURE__ */ React.createElement("label", { htmlFor: "cl-card-bg", className: "cl-bg-btn" }, /* @__PURE__ */ React.createElement(Images, { size: 16 }), customBg && customBg !== data.photo ? " Change photo" : " My photo"), isLog && data.photo && customBg !== data.photo && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => { setCustomBg(data.photo); setCardBg(null); } }, /* @__PURE__ */ React.createElement(Mountain, { size: 16 }), " Wall photo"), customBg && /* @__PURE__ */ React.createElement("button", { className: "cl-bg-btn", onClick: () => setCustomBg(null) }, "Transparent"))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: shareImage, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Share2, { size: 15, style: { marginRight: 6 } }), " Share"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-share-download-btn", onClick: download, disabled: !imgUrl }, /* @__PURE__ */ React.createElement(Download, { size: 13, style: { marginRight: 4 } }), " Download image")));
 }
 function GuestProfileView({ username, onGoToLogin }) {
   const [profile, setProfile] = useState(null);
@@ -2740,12 +2793,17 @@ function SocialPostCard({ entry, profile, comments, me, allLogs, onComment, onKu
     }
   ), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: submitComment }, /* @__PURE__ */ React.createElement(Send, { size: 15 }))))));
 }
-function NewPostOverlay({ defaultGym, onClose, onSaveLog }) {
+function NewPostOverlay({ defaultGym, logs, onClose, onSaveLog, onAddTry }) {
   return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "New log"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
     NewPostForm,
     {
       defaultGym,
+      logs,
       onCancel: onClose,
+      onAddTry: async (id, data) => {
+        await onAddTry(id, data);
+        onClose();
+      },
       onSaveLog: async (data) => {
         await onSaveLog(data);
         onClose();
@@ -4569,6 +4627,28 @@ function ChalklineApp() {
         .cl-tech-what { font-size: 14px; line-height: 1.45; margin: 8px 0; }
         .cl-tech-how { margin: 4px 0 8px; padding-left: 18px; font-size: 13.5px; line-height: 1.5; }
         .cl-tech-link { display: block; margin-top: 8px; background: none; border: none; padding: 4px 0; color: var(--accent2); font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: left; }
+        .cl-beta-tune { margin-top: 8px; }
+        .cl-beta-tunebtn { background: none; border: 1px solid var(--line); color: var(--ink-soft); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cl-beta-tunebox { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 8px; }
+        .cl-beta-tunerow { display: grid; grid-template-columns: 82px 1fr 44px; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
+        .cl-beta-tunerow em { font-style: normal; text-align: right; color: var(--ink); }
+        .cl-beta-tunerow input { width: 100%; accent-color: var(--accent2); }
+        .cl-ql-timer { background: none; border: 1px solid var(--line); color: var(--accent2); border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; margin-right: 6px; white-space: nowrap; }
+        .cl-samewall { margin: 0 0 10px; border: 1px dashed var(--line); border-radius: 12px; padding: 4px 10px; }
+        .cl-samewall-toggle { width: 100%; display: flex; align-items: center; gap: 8px; background: none; border: none; color: var(--accent2); font-size: 13px; font-weight: 600; padding: 8px 0; cursor: pointer; }
+        .cl-samewall.linked { display: flex; align-items: center; gap: 8px; padding: 10px; font-size: 13px; color: var(--ink); border-style: solid; border-color: var(--accent2); }
+        .cl-samewall.linked span { flex: 1; }
+        .cl-samewall.linked button { background: none; border: none; color: var(--ink-soft); font-size: 12px; cursor: pointer; text-decoration: underline; }
+        .cl-beta-mk.surf-wall { border-style: dashed; background-image: none; opacity: 0.9; }
+        .cl-beta-mk.surf-volume { box-shadow: 0 0 0 4px rgba(255,255,255,0.45); }
+        .cl-beta-surf { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); margin: 6px 0; }
+        .cl-beta-surf button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cl-beta-surf button.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+        .cl-design-thumbs { display: flex; gap: 10px; justify-content: center; margin: 10px 0; }
+        .cl-design-thumb { background: none; border: 2px solid var(--line); border-radius: 10px; padding: 3px; cursor: pointer; width: 84px; color: var(--ink-soft); }
+        .cl-design-thumb.active { border-color: var(--accent2); color: var(--ink); }
+        .cl-design-thumb img { width: 100%; display: block; border-radius: 7px; }
+        .cl-design-thumb small { display: block; font-size: 10.5px; font-weight: 600; margin-top: 3px; }
         .cl-add-option.primary b { color: var(--accent2); }
         .cl-session-bar { position: fixed; left: 8px; right: 8px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 49; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent2) 55%, var(--line)); box-shadow: 0 8px 22px rgba(0,0,0,0.35); max-width: 664px; margin: 0 auto; }
         .cl-session-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); animation: cl-blink 1.4s ease-in-out infinite; flex-shrink: 0; }
@@ -4682,7 +4762,7 @@ function ChalklineApp() {
       commentsMap,
       addComment
     }
-  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), session && React.createElement("div", { className: "cl-session-bar" }, React.createElement("span", { className: "cl-session-dot" }), React.createElement("b", null, fmtClock(Date.now() - session.start)), React.createElement("span", { className: "cl-session-meta" }, session.n, session.n === 1 ? " problem" : " problems", " \u00B7 ", session.attempts, " tries \u00B7 ", session.sent, " sent"), React.createElement("button", { type: "button", onClick: () => setShowQuick(true) }, "Log"), React.createElement("button", { type: "button", className: "end", onClick: endSession }, "End")), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowAddMenu(true), title: "Add", "aria-label": "Add" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showQuick && React.createElement(QuickLogSheet, { me, logs, session, gymDefault: profiles[me] && profiles[me].mainGym, onClose: () => setShowQuick(false), onLog: createClimbPost, onAddTry: addTry, onLogged: quickLogged }), sessionSummary && React.createElement(BottomSheet, { title: "Session done", message: `${Math.max(1, Math.round((sessionSummary.end - sessionSummary.start) / 6e4))} min at ${sessionSummary.gym} \u00B7 ${sessionSummary.n} problems \u00B7 ${sessionSummary.attempts} tries \u00B7 ${sessionSummary.sent} sent. Open any log to add photos, beta or notes.`, confirmLabel: "Nice", onCancel: () => setSessionSummary(null), onConfirm: () => setSessionSummary(null) }), showAddMenu && /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: () => setShowAddMenu(false) }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, "Add"), React.createElement("button", { className: "cl-add-option primary", onClick: () => { setShowAddMenu(false); setShowQuick(true); } }, React.createElement(Check, { size: 20 }), React.createElement("span", null, React.createElement("b", null, "Quick log"), React.createElement("small", null, "Grade, result, tries \u2014 done in seconds"))), React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); if (session) endSession(); else startSession(); } }, React.createElement(Clock, { size: 20 }), React.createElement("span", null, React.createElement("b", null, session ? "End session" : "Start session"), React.createElement("small", null, session ? "Stop the timer and see your summary" : "Climb first, log between attempts"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setLiveLogState({ continueEntry: null }); } }, /* @__PURE__ */ React.createElement(Zap, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, React.createElement("b", null, "Live timer"), React.createElement("small", null, "Time each attempt while you climb"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowNewPost(true); } }, /* @__PURE__ */ React.createElement(Layers, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, React.createElement("b", null, "Full log"), React.createElement("small", null, "Photo, beta and notes \u2014 or a whole day"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowSocialPost({}); } }, /* @__PURE__ */ React.createElement(Camera, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New post"), /* @__PURE__ */ React.createElement("small", null, "Share photos or gear with the crew"))))), viewingProfile && /* @__PURE__ */ React.createElement(
+  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), session && React.createElement("div", { className: "cl-session-bar" }, React.createElement("span", { className: "cl-session-dot" }), React.createElement("b", null, fmtClock(Date.now() - session.start)), React.createElement("span", { className: "cl-session-meta" }, session.n, session.n === 1 ? " problem" : " problems", " \u00B7 ", session.attempts, " tries \u00B7 ", session.sent, " sent"), React.createElement("button", { type: "button", onClick: () => setShowQuick(true) }, "Log"), React.createElement("button", { type: "button", className: "end", onClick: endSession }, "End")), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowAddMenu(true), title: "Add", "aria-label": "Add" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showQuick && React.createElement(QuickLogSheet, { me, logs, session, gymDefault: profiles[me] && profiles[me].mainGym, onClose: () => setShowQuick(false), onLog: createClimbPost, onAddTry: addTry, onLogged: quickLogged, onStartSession: () => { startSession(); } }), sessionSummary && React.createElement(BottomSheet, { title: "Session done", message: `${Math.max(1, Math.round((sessionSummary.end - sessionSummary.start) / 6e4))} min at ${sessionSummary.gym} \u00B7 ${sessionSummary.n} problems \u00B7 ${sessionSummary.attempts} tries \u00B7 ${sessionSummary.sent} sent. Open any log to add photos, beta or notes.`, confirmLabel: "Nice", onCancel: () => setSessionSummary(null), onConfirm: () => setSessionSummary(null) }), showAddMenu && /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: () => setShowAddMenu(false) }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, "Add"), React.createElement("button", { className: "cl-add-option primary", onClick: () => { setShowAddMenu(false); setShowQuick(true); } }, React.createElement(Check, { size: 20 }), React.createElement("span", null, React.createElement("b", null, "Quick log"), React.createElement("small", null, "Grade, result, tries \u2014 seconds per climb. Add photo later."))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowNewPost(true); } }, /* @__PURE__ */ React.createElement(Layers, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, React.createElement("b", null, "Full log"), React.createElement("small", null, "Photo, beta, notes \u2014 or log a whole day"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowSocialPost({}); } }, /* @__PURE__ */ React.createElement(Camera, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New post"), /* @__PURE__ */ React.createElement("small", null, "Share photos or gear with the crew"))))), viewingProfile && /* @__PURE__ */ React.createElement(
     ProfileView,
     {
       slug: viewingProfile,
@@ -4707,7 +4787,9 @@ function ChalklineApp() {
     NewPostOverlay,
     {
       defaultGym: profiles[me].mainGym || GYM_OPTIONS[0],
+      logs: logs.filter((l) => l.authorSlug === me),
       onClose: () => setShowNewPost(false),
+      onAddTry: addTry,
       onSaveLog: createClimbPost
     }
   ), showSocialPost && /* @__PURE__ */ React.createElement(

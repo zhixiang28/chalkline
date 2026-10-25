@@ -21,7 +21,8 @@ export const BODY = { torso: 1.05, shoulder: 0.3, hip: 0.18, upperArm: 0.55, for
 
 // targets: { LH, RH, LF, RF } each {x,y} or undefined. u = body scale. opts.hip / opts.knees / opts.elbows optional overrides.
 export function solvePose(targets, u, opts = {}) {
-  const B = BODY;
+  const ak = opts.armK || 1, lk = opts.legK || 1, tk = opts.torsoK || 1;
+  const B = { ...BODY, upperArm: BODY.upperArm * ak, foreArm: BODY.foreArm * ak, thigh: BODY.thigh * lk, shin: BODY.shin * lk, torso: BODY.torso * tk };
   const hands = [targets.LH, targets.RH].filter(Boolean), feet = [targets.LF, targets.RF].filter(Boolean);
   const hm = mean(hands), fm = mean(feet);
   let C; // hip centre

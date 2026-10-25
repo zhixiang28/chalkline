@@ -67,7 +67,7 @@ const bodyScale = (moves, asp) => {
 function Marker({ m, number, selected, active, small, off }) {
   const L = LIMBS[m.limb];
   return h("div", {
-    className: `cl-beta-mk ${L.kind}${selected ? " selected" : ""}${active ? " active" : ""}${small ? " small" : ""}`,
+    className: `cl-beta-mk ${L.kind}${m.surf && m.surf !== "hold" ? " surf-" + m.surf : ""}${selected ? " selected" : ""}${active ? " active" : ""}${small ? " small" : ""}`,
     style: { left: `${m.x + (off ? off.dx : 0)}%`, top: `${m.y + (off ? off.dy : 0)}%`, background: L.color, color: L.ink },
   }, h("span", null, L.short), number != null && h("i", null, number));
 }
@@ -90,11 +90,11 @@ export function BetaLegend() {
 }
 
 // ---------- stickman overlay ----------
-function Stickman({ disp, asp, u }) {
+function Stickman({ disp, asp, u, build }) {
   const t = {};
   Object.keys(disp).forEach((k) => { t[k] = { x: disp[k].x, y: disp[k].y * asp }; });
   if (!Object.keys(t).length) return null;
-  const P = solvePose(t, u, {});
+  const P = solvePose(t, u, { armK: build.arm, legK: build.leg, torsoK: build.torso });
   const L = poseLines(P);
   const col = (k) => LIMBS[k].color;
   const body = (key, d, w, c) => h("path", { key, d, fill: "none", stroke: c, strokeWidth: w, strokeLinecap: "round", strokeLinejoin: "round" });
@@ -106,6 +106,15 @@ function Stickman({ disp, asp, u }) {
     h("circle", { cx: P.head.x, cy: P.head.y, r: P.headR, fill: "#2A2D27", stroke: "#F2F0E9", strokeWidth: 1.5 }));
 }
 
+const DEFAULT_BUILD = { size: 0.75, arm: 1, leg: 1, torso: 1 };
+function loadBuild() {
+  try { const v = JSON.parse(localStorage.getItem("chalkline_build") || "null"); if (v && v.size) return { ...DEFAULT_BUILD, ...v }; } catch {}
+  return DEFAULT_BUILD;
+}
+const SURFS = [["hold", "Hold"], ["volume", "Volume"], ["wall", "Wall"]];
+function SurfacePicker({ value, onChange }) {
+  return h("div", { className: "cl-beta-surf" }, h("span", null, "On a"), SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: value === k ? "active" : "", onClick: () => onChange(k) }, label)));
+}
 const stepLabel = (g) => g.map((m) => LIMBS[m.limb].label).join(" + ");
 
 // ---------- player (read-only, animated) ----------
@@ -117,6 +126,9 @@ export function BetaPlayer({ photo, beta, onShare }) {
   const [playing, setPlaying] = useState(false);
   const [stick, setStick] = useState(false);
   const [asp, setAsp] = useState(1.33);
+  const [build, setBuildState] = useState(loadBuild);
+  const [tune, setTune] = useState(false);
+  const setBuild = (patch) => setBuildState((b0) => { const nb = { ...b0, ...patch }; try { localStorage.setItem("chalkline_build", JSON.stringify(nb)); } catch {} return nb; });
   useEffect(() => {
     if (!playing) return undefined;
     const t = setInterval(() => setStep((s) => { if (s >= n) { setPlaying(false); return n; } return s + 1; }), 1300);
@@ -154,7 +166,7 @@ export function BetaPlayer({ photo, beta, onShare }) {
     h("div", { className: stick ? "cl-beta-stage dim" : "cl-beta-stage" },
       h("img", { src: photo, alt: "Wall with beta", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
       !stick && h(Trails, { moves, step, activeGroup: step - 1 }),
-      stick && h(Stickman, { disp, asp, u }),
+      stick && h(Stickman, { disp, asp, u: u * build.size, build }),
       Object.keys(pos).map((k) => h(Marker, { key: k, m: pos[k], off: offs[k], active: pos[k].gi === step - 1 }))),
     h("div", { className: "cl-beta-controls" },
       h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous move" }, h(ChevronLeft, { size: 18 })),
@@ -165,11 +177,18 @@ export function BetaPlayer({ photo, beta, onShare }) {
     h("div", { className: "cl-beta-modes" },
       h("button", { type: "button", className: !stick ? "cl-beta-mode active" : "cl-beta-mode", onClick: () => setStick(false) }, "Holds"),
       h("button", { type: "button", className: stick ? "cl-beta-mode active" : "cl-beta-mode", onClick: () => setStick(true) }, h(PersonStanding, { size: 14 }), " Stickman")),
+    stick && h("div", { className: "cl-beta-tune" },
+      h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setTune((v) => !v) }, tune ? "Hide body settings" : "Adjust stickman size & body"),
+      tune && h("div", { className: "cl-beta-tunebox" },
+        [["size", "Size", 0.3, 1.6], ["arm", "Arm length", 0.7, 1.4], ["leg", "Leg length", 0.7, 1.4], ["torso", "Torso", 0.7, 1.4]].map(([k, label, lo, hi]) => h("label", { key: k, className: "cl-beta-tunerow" },
+          h("span", null, label), h("input", { type: "range", min: lo, max: hi, step: 0.05, value: build[k], onChange: (e) => setBuild({ [k]: Number(e.target.value) }) }), h("em", null, Math.round(build[k] * 100) + "%"))),
+        h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setBuildState(() => { try { localStorage.removeItem("chalkline_build"); } catch {} return DEFAULT_BUILD; }) }, "Reset"))),
     h("div", { className: "cl-beta-caption" }, cur ? h(React.Fragment, null,
       h("b", null, `Step ${step} \u00B7 ${stepLabel(cur)}`),
       cur.map((m) => h("div", { key: m.id, className: "cl-beta-mline" },
         h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: LIMBS[m.limb].color } }), LIMBS[m.limb].short === "L" ? "Left " : "Right ", LIMBS[m.limb].kind),
-        m.color && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold"),
+        m.surf && m.surf !== "hold" && h("span", { className: "cl-beta-chipc" }, "on ", m.surf === "wall" ? "the wall" : "a volume"),
+        m.color && m.surf !== "wall" && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold"),
         m.tech && TECH_BY_ID[m.tech] && h("span", { className: "cl-beta-tech" }, TECH_BY_ID[m.tech].name, h(TechniqueHelpButton, { id: m.tech })),
         m.note && h("p", null, m.note)))) : h("span", { className: "cl-hint" }, "Press play to watch the beta, or drag the slider.")),
     h(BetaLegend), onShare && h("button", { type: "button", className: "cl-btn-ghost cl-beta-share", onClick: onShare }, "Share beta"));
@@ -186,6 +205,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   const [state, setState] = useState("loading");
   const [ping, setPing] = useState(null);
   const [tog, setTog] = useState(false);
+  const [surf, setSurf] = useState("hold");
   const [asp, setAsp] = useState(1.33);
   const stageRef = useRef();
   const canvasRef = useRef();
@@ -236,11 +256,11 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
 
   const place = (x, y, color) => {
     if (sel != null) {
-      setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, x, y, color } : m)));
+      setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, x, y, color: m.surf === "wall" ? null : color } : m)));
       setSel(null);
       return;
     }
-    setMoves((ms) => [...ms, { id: rid(), limb, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, color, note: "", tech: null, together: tog && ms.length > 0 }]);
+    setMoves((ms) => [...ms, { id: rid(), limb, surf, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, color: surf === "wall" ? null : color, note: "", tech: null, together: tog && ms.length > 0 }]);
     setTog(false);
     setLimb(NEXT_LIMB[limb]);
   };
@@ -278,7 +298,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     place(fx * 100, fy * 100, color);
   };
 
-  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, x, y, color, note, tech, together }, i) => ({ id, limb: l, x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0) })) } : null);
+  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0) })) } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
@@ -308,6 +328,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
           h(Trails, { moves, step: 9999, activeGroup: -1 }),
           moves.map((m, i) => h(Marker, { key: m.id, m, off: offs[m.id], number: steps[i], selected: sel === i, small: zoom === 1 })),
           ping && h("span", { key: ping.k, className: "cl-beta-ping", style: { left: `${ping.x}%`, top: `${ping.y}%` } }))),
+      sel == null && h(SurfacePicker, { value: surf, onChange: setSurf }),
       h("div", { className: "cl-beta-limbs" },
         Object.keys(LIMBS).map((k) => h("button", { key: k, type: "button", className: (sel != null ? moves[sel].limb : limb) === k ? "cl-beta-limb active" : "cl-beta-limb", style: (sel != null ? moves[sel].limb : limb) === k ? { borderColor: LIMBS[k].color, color: LIMBS[k].color } : void 0, onClick: () => { if (sel != null) updateSel({ limb: k }); else setLimb(k); } }, h("b", { className: `cl-beta-dot ${LIMBS[k].kind}`, style: { background: LIMBS[k].color } }), LIMBS[k].label))),
       h("div", { className: "cl-beta-moves" },
@@ -317,6 +338,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       sel != null ? h("div", { className: "cl-beta-edit" },
         h("p", { className: "cl-hint" }, `Step ${steps[sel]} (${LIMBS[moves[sel].limb].label}): tap a limb above to change it, or tap the photo to move it to another hold.`),
         sel > 0 && h("button", { type: "button", className: moves[sel].together ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => updateSel({ together: !moves[sel].together }) }, h(Link2, { size: 14 }), moves[sel].together ? " Same step as the previous move" : " Make this the same step as the previous move"),
+        h(SurfacePicker, { value: moves[sel].surf || "hold", onChange: (s) => updateSel({ surf: s, color: s === "wall" ? null : moves[sel].color }) }),
         h("p", { className: "cl-section-caption", style: { margin: "6px 0 0" } }, "Technique (tap ? to see how)"),
         h(TechniquePicker, { value: moves[sel].tech || null, onChange: (t) => updateSel({ tech: t }) }),
         h("input", { className: "cl-input", value: moves[sel].note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
@@ -385,5 +407,52 @@ export function drawBeta(ctx, imgRect, view, beta, k = 1) {
     ctx.fillStyle = L.ink; ctx.font = `800 ${12 * k}px sans-serif`; ctx.textAlign = "center";
     ctx.fillText(String(steps[i]), p.x, p.y + 4.2 * k);
   });
+  ctx.restore();
+}
+
+// ---------- share-card: stickman frame (a crop of the wall with the climber at one step) ----------
+export function drawStickFrame(ctx, x, y, w, h, img, beta, step, label, build) {
+  const moves = (beta && beta.moves) || [];
+  if (!moves.length || !img) return;
+  const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || loadBuild()) };
+  const iw = img.width, ih = img.height, asp = ih / iw;
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  moves.forEach((m) => { const px = (m.x / 100) * iw, py = (m.y / 100) * ih; x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); });
+  const bw = x1 - x0, bh = y1 - y0;
+  let ch = Math.max(bh * 1.7, (bw * 1.7 * h) / w, ih * 0.4);
+  let cw = (ch * w) / h;
+  if (cw > iw) { cw = iw; ch = (cw * h) / w; }
+  if (ch > ih) { ch = ih; cw = (ch * w) / h; }
+  const sx = Math.min(iw - cw, Math.max(0, (x0 + x1) / 2 - cw / 2)), sy = Math.min(ih - ch, Math.max(0, (y0 + y1) / 2 - ch / 2));
+  const k = w / cw, unit = (iw / 100) * k; // px per percent-x unit in the frame
+  const F = (p) => ({ x: x + (p.x * (iw / 100) - sx) * k, y: y + (p.y * (iw / 100) - sy) * k });
+  ctx.save();
+  const r = 14;
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); ctx.clip();
+  ctx.drawImage(img, sx, sy, cw, ch, x, y, w, h);
+  ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.fillRect(x, y, w, h);
+  const pos = positionsAt(moves, step);
+  const t = {};
+  Object.keys(pos).forEach((kk) => { t[kk] = { x: pos[kk].x, y: pos[kk].y * asp }; });
+  if (Object.keys(t).length) {
+    const u = bodyScale(moves, asp) * bd.size;
+    const P = solvePose(t, u, { armK: bd.arm, legK: bd.leg, torsoK: bd.torso });
+    const line = (pts, col, lw) => { ctx.beginPath(); pts.forEach((p, i) => { const q = F(p); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); ctx.strokeStyle = col; ctx.lineWidth = lw * unit; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(); };
+    const segs = [[[P.neck, P.hip], "#F2F0E9", 2.4], [[P.LS, P.RS], "#F2F0E9", 2], [[P.LP, P.RP], "#F2F0E9", 2], [[P.LS, P.LE, P.LH], LIMBS.LH.color, 2], [[P.RS, P.RE, P.RH], LIMBS.RH.color, 2], [[P.LP, P.LK, P.LF], LIMBS.LF.color, 2.1], [[P.RP, P.RK, P.RF], LIMBS.RF.color, 2.1]];
+    segs.forEach(([pts, , lw]) => line(pts, "rgba(0,0,0,0.65)", lw + 1.6));
+    segs.forEach(([pts, col, lw]) => line(pts, col, lw));
+    const hp = F(P.head);
+    ctx.beginPath(); ctx.arc(hp.x, hp.y, P.headR * unit, 0, Math.PI * 2); ctx.fillStyle = "#2A2D27"; ctx.fill(); ctx.lineWidth = 1.5 * unit; ctx.strokeStyle = "#F2F0E9"; ctx.stroke();
+    Object.keys(pos).forEach((kk) => {
+      const q = F({ x: pos[kk].x, y: pos[kk].y * asp }), L = LIMBS[kk];
+      ctx.beginPath(); ctx.arc(q.x, q.y, 3.4 * unit, 0, Math.PI * 2); ctx.fillStyle = L.color; ctx.fill(); ctx.lineWidth = 0.5 * unit; ctx.strokeStyle = "#fff"; ctx.stroke();
+    });
+  }
+  if (label) {
+    ctx.font = "800 18px sans-serif"; ctx.textAlign = "left";
+    const tw = ctx.measureText(label).width + 20;
+    ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(x + 10, y + h - 36, tw, 26);
+    ctx.fillStyle = "#fff"; ctx.fillText(label, x + 20, y + h - 17);
+  }
   ctx.restore();
 }
