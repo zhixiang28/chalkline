@@ -452,11 +452,9 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
 
   const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })), ...savedPoses() } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
-  // some techniques (dyno) throw both hands / both feet at once: group this move with the previous one
+  // the technique applies to every move of the step (grouping is always the user's choice, also for a dyno)
   const setTech = (t) => setMoves((ms) => {
-    const m = ms[sel], p = sel > 0 ? ms[sel - 1] : null;
-    const pair = t === "dyno" && p && !m.together && p.limb !== m.limb && LIMBS[p.limb].kind === LIMBS[m.limb].kind;
-    const next = ms.map((x, i) => (pair && i === sel ? { ...x, together: true } : { ...x }));
+    const next = ms.map((x) => ({ ...x }));
     const grp = groupMoves(next).find((g) => g.some((x) => x.idx === sel));
     grp.forEach((x) => { next[x.idx].tech = t; });
     return next;
