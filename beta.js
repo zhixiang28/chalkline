@@ -289,6 +289,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   const [ping, setPing] = useState(null);
   const [tog, setTog] = useState(false);
   const [surf, setSurf] = useState("hold");
+  const [ins, setIns] = useState(null); // when set, new moves are inserted after this index instead of at the end
   const [asp, setAsp] = useState(1.33);
   const stageRef = useRef();
   const canvasRef = useRef();
@@ -343,9 +344,27 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       setSel(null);
       return;
     }
-    setMoves((ms) => [...ms, { id: rid(), limb, surf, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, color: surf === "wall" ? null : color, note: "", tech: null, together: tog && ms.length > 0 }]);
+    addMove({ id: rid(), limb, surf, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, color: surf === "wall" ? null : color, note: "", tech: null, together: tog && moves.length > 0 });
     setTog(false);
     setLimb(NEXT_LIMB[limb]);
+  };
+  const addMove = (m) => {
+    if (ins == null) { setMoves((ms) => [...ms, m]); return; }
+    setMoves((ms) => { const a = ms.slice(); a.splice(ins + 1, 0, m); return a; });
+    setIns(ins + 1);
+  };
+  // move a whole step (all its moves) one place earlier / later
+  const shiftStep = (dir) => {
+    const groups = groupMoves(moves);
+    const gi = groups.findIndex((g) => g.some((m) => m.idx === sel)), to = gi + dir;
+    if (gi < 0 || to < 0 || to >= groups.length) return;
+    const id = moves[sel].id;
+    const order = groups.slice();
+    [order[gi], order[to]] = [order[to], order[gi]];
+    const next = [];
+    order.forEach((g) => g.forEach((m, k) => { const { idx, ...rest } = m; next.push({ ...rest, together: k > 0 }); }));
+    setMoves(next);
+    setSel(next.findIndex((m) => m.id === id));
   };
 
   const handleTap = (cx, cy) => {
@@ -424,13 +443,18 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
         moves.length === 0 && h("span", { className: "cl-hint" }, "Pick a limb, then tap the hold it uses. Do your moves in order."),
         moves.map((m, i) => h("button", { key: m.id, type: "button", className: sel === i ? "cl-beta-move active" : "cl-beta-move", onClick: () => setSel(sel === i ? null : i) }, m.together && i > 0 && h("em", null, "+"), h("b", { style: { background: LIMBS[m.limb].color, color: LIMBS[m.limb].ink } }, steps[i]), m.limb, m.free && h("small", null, "free"), m.tech && h("small", null, TECH_BY_ID[m.tech] ? TECH_BY_ID[m.tech].name : "")))),
       sel == null && moves.length > 0 && h("button", { type: "button", className: tog ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => setTog(!tog) }, h(Link2, { size: 14 }), tog ? " Next tap is the same step as the previous move" : " Same step as previous move? (e.g. matching both hands)"),
+      sel == null && ins != null && h("div", { className: "cl-beta-ins" }, h("span", null, `Adding after step ${steps[ins]} \u2014 pick a limb, then tap the hold`), h("button", { type: "button", onClick: () => setIns(null) }, "Done")),
       sel == null && h("div", { className: "cl-beta-free" },
         h("span", null, `Let ${LIMBS[limb].label.toLowerCase()} go (free):`),
-        [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", onClick: () => { setMoves((ms) => [...ms, { id: rid(), limb, free: true, dir, x: 50, y: 50, surf: "hold", color: null, note: "", tech: null, together: tog && ms.length > 0 }]); setTog(false); setLimb(NEXT_LIMB[limb]); } }, label))),
+        [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", onClick: () => { addMove({ id: rid(), limb, free: true, dir, x: 50, y: 50, surf: "hold", color: null, note: "", tech: null, together: tog && moves.length > 0 }); setTog(false); setLimb(NEXT_LIMB[limb]); } }, label))),
       sel != null ? h("div", { className: "cl-beta-edit" },
         h("p", { className: "cl-hint" }, moves[sel].free ? `Step ${steps[sel]}: ${LIMBS[moves[sel].limb].label} is free (off the wall). Tap the photo to put it on a hold instead.` : `Step ${steps[sel]} (${LIMBS[moves[sel].limb].label}): tap a limb above to change it, or tap the photo to move it to another hold.`),
         sel > 0 && h("button", { type: "button", className: moves[sel].together ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => updateSel({ together: !moves[sel].together }) }, h(Link2, { size: 14 }), moves[sel].together ? " Same step as the previous move" : " Make this the same step as the previous move"),
         moves[sel].free ? h("div", { className: "cl-beta-free" }, h("span", null, "Free limb:"), [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", className: (moves[sel].dir || 0) === dir ? "active" : "", onClick: () => updateSel({ dir }) }, label))) : h(SurfacePicker, { value: moves[sel].surf || "hold", onChange: (s) => updateSel({ surf: s, color: s === "wall" ? null : moves[sel].color }) }),
+        h("div", { className: "cl-beta-order" },
+          h("button", { type: "button", onClick: () => shiftStep(-1), disabled: steps[sel] <= 1 }, "\u2191 Step earlier"),
+          h("button", { type: "button", onClick: () => shiftStep(1), disabled: steps[sel] >= groupMoves(moves).length }, "\u2193 Step later"),
+          h("button", { type: "button", onClick: () => { const g = groupMoves(moves).find((gr) => gr.some((m) => m.idx === sel)); setIns(Math.max(...g.map((m) => m.idx))); setSel(null); } }, "+ Add a step after this")),
         h("p", { className: "cl-section-caption", style: { margin: "6px 0 0" } }, "Technique (tap ? to see how)"),
         h(TechniquePicker, { value: moves[sel].tech || null, onChange: (t) => setTech(t) }),
         h("input", { className: "cl-input", value: moves[sel].note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
