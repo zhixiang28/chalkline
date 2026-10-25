@@ -437,7 +437,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     setLimb(NEXT_LIMB[limb]);
   };
   const addMove = (m) => {
-    if (ins == null) { setMoves((ms) => [...ms, m]); return; }
+    if (ins == null) { setMoves((ms) => [...ms, m]); setLastView("last"); return; }
     setMoves((ms) => { const a = ms.slice(); a.splice(ins + 1, 0, m); return a; });
     setIns(ins + 1);
   };
@@ -504,7 +504,12 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   // stickman preview: shows the pose at the selected step (or the last one) and lets you drag its joints
   const groupsAll = useMemo(() => groupMoves(moves), [moves]);
   const nSteps = groupsAll.length;
-  const viewStep = Math.max(1, Math.min(nSteps || 1, playing ? playStep : sel != null ? steps[sel] : nSteps));
+  // which step the stickman shows: the selected one, the one being added after, else where you last were
+  // (an existing beta opens on its first step; new moves follow the latest step)
+  const [lastView, setLastView] = useState(() => (beta && beta.moves && beta.moves.length ? 1 : "last"));
+  useEffect(() => { if (sel != null && steps[sel]) setLastView(steps[sel]); }, [sel, steps]);
+  useEffect(() => { if (ins != null && steps[ins]) setLastView(steps[ins]); }, [ins, steps]);
+  const viewStep = Math.max(1, Math.min(nSteps || 1, playing ? playStep : sel != null ? steps[sel] : ins != null && steps[ins] ? steps[ins] : lastView === "last" ? nSteps : lastView));
   const uBody = useMemo(() => (moves.length ? stickScale(moves, asp, loadBuild()) : 0), [moves, asp]);
   const target = useMemo(() => (stickOn && moves.length ? poseAt(moves, viewStep, asp, uBody, loadBuild(), poses) : null), [stickOn, moves, viewStep, asp, uBody, poses]);
   const [pose] = usePoseTween(target, stickOn, 1, dragKey != null);
@@ -579,6 +584,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       h("span", { className: "cl-beta-lab" }, m0.free ? "Free limb" : "On a"),
       m0.free ? [dirChips(m0.dir || 0, (dir) => updateSel({ dir })), h("button", { key: "back", type: "button", className: "cl-beta-chip wide", onClick: () => updateSel({ free: false, dir: 0 }) }, "Put on a hold")] : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
       sel > 0 && h("button", { type: "button", className: m0.together ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => updateSel({ together: !m0.together }) }, h(Link2, { size: 13 }), " Same step as previous")),
+    m0.free && h("p", { className: "cl-beta-tip" }, "A free limb is not a step of its own: it lets go together with the next step (or the previous one if it is last)."),
     !m0.free && h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, "Or let it go"), dirChips(null, (dir) => updateSel({ free: true, dir }))),
     sugg && sugg.id !== curStepTech && h("button", { type: "button", className: "cl-beta-suggest", onClick: () => setTech(sugg.id) }, h(Sparkles, { size: 14 }), h("span", null, "Suggested: ", h("b", null, TECH_BY_ID[sugg.id].name), h("small", null, " \u2014 ", sugg.why)), h("em", null, "Use")),
     h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, curStepTech ? TECH_BY_ID[curStepTech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
