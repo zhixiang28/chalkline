@@ -19,13 +19,28 @@ const rid = () => Math.random().toString(36).slice(2, 9);
 export const hasBeta = (b) => !!(b && b.moves && b.moves.length);
 
 // moves flagged `together` happen in the same step as the previous move (e.g. matching both hands on one hold)
+// - the starting position (the first move of each limb) is one step
+// - letting a limb go (free) is not a step of its own: it joins the next step (or the previous one at the very end)
 export function groupMoves(moves) {
+  const list = (moves || []).map((m, i) => ({ ...m, idx: i }));
   const groups = [];
-  (moves || []).forEach((m, i) => {
-    if (i === 0 || !m.together) groups.push([]);
-    groups[groups.length - 1].push({ ...m, idx: i });
+  const seen = new Set();
+  let start = 0;
+  while (start < list.length && !seen.has(list[start].limb)) { seen.add(list[start].limb); start++; }
+  if (start) groups.push(list.slice(0, start));
+  list.slice(start).forEach((m, k) => {
+    if (k === 0 || !m.together) groups.push([]);
+    groups[groups.length - 1].push(m);
   });
-  return groups;
+  const out = [];
+  let carry = [];
+  groups.forEach((g, gi) => {
+    if (gi > 0 && g.every((m) => m.free)) { carry = carry.concat(g); return; }
+    out.push(carry.concat(g).sort((a, c) => a.idx - c.idx));
+    carry = [];
+  });
+  if (carry.length) { if (out.length) out[out.length - 1] = out[out.length - 1].concat(carry).sort((a, c) => a.idx - c.idx); else out.push(carry); }
+  return out;
 }
 export const stepOfMove = (moves) => { const map = []; groupMoves(moves).forEach((g, gi) => g.forEach((m) => { map[m.idx] = gi + 1; })); return map; };
 
@@ -145,9 +160,9 @@ function Stickman({ pose, asp }) {
     h("circle", { cx: P.head.x, cy: P.head.y, r: P.headR, fill: "#2A2D27", stroke: "#F2F0E9", strokeWidth: 1.5 }));
 }
 
-const DEFAULT_BUILD = { size: 0.75, arm: 1, leg: 1, torso: 1 };
+const DEFAULT_BUILD = { size: 0.75, arm: 1, leg: 1, torso: 1 }; // only the size is adjustable; limb proportions stay fixed
 function loadBuild() {
-  try { const v = JSON.parse(localStorage.getItem("chalkline_build") || "null"); if (v && v.size) return { ...DEFAULT_BUILD, ...v }; } catch {}
+  try { const v = JSON.parse(localStorage.getItem("chalkline_build") || "null"); if (v && v.size) return { ...DEFAULT_BUILD, size: v.size }; } catch {}
   return DEFAULT_BUILD;
 }
 const SURFS = [["hold", "Hold"], ["volume", "Volume"], ["wall", "Wall"]];
@@ -233,9 +248,9 @@ export function BetaPlayer({ photo, beta, onShare, title, subtitle }) {
       h("button", { type: "button", className: !stick ? "cl-beta-mode active" : "cl-beta-mode", onClick: () => setStick(false) }, "Holds"),
       h("button", { type: "button", className: stick ? "cl-beta-mode active" : "cl-beta-mode", onClick: () => setStick(true) }, h(PersonStanding, { size: 14 }), " Stickman")),
     stick && h("div", { className: "cl-beta-tune" },
-      h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setTune((v) => !v) }, tune ? "Hide body settings" : "Adjust stickman size & body"),
+      h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setTune((v) => !v) }, tune ? "Hide size" : "Adjust stickman size"),
       tune && h("div", { className: "cl-beta-tunebox" },
-        [["size", "Size", 0.3, 1.6], ["arm", "Arm length", 0.7, 1.4], ["leg", "Leg length", 0.7, 1.4], ["torso", "Torso", 0.7, 1.4]].map(([k, label, lo, hi]) => h("label", { key: k, className: "cl-beta-tunerow" },
+        [["size", "Size", 0.3, 1.6]].map(([k, label, lo, hi]) => h("label", { key: k, className: "cl-beta-tunerow" },
           h("span", null, label), h("input", { type: "range", min: lo, max: hi, step: 0.05, value: build[k], onChange: (e) => setBuild({ [k]: Number(e.target.value) }) }), h("em", null, Math.round(build[k] * 100) + "%"))),
         h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setBuildState(() => { try { localStorage.removeItem("chalkline_build"); } catch {} return DEFAULT_BUILD; }) }, "Reset"))),
     h("div", { className: "cl-beta-caption" }, cur ? h(React.Fragment, null,
@@ -368,6 +383,12 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
 
   const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })) } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
+  // some techniques (dyno) throw both hands / both feet at once: group this move with the previous one
+  const setTech = (t) => {
+    const m = moves[sel], p = sel > 0 ? moves[sel - 1] : null;
+    const pair = t === "dyno" && p && !m.together && p.limb !== m.limb && LIMBS[p.limb].kind === LIMBS[m.limb].kind;
+    updateSel(pair ? { tech: t, together: true } : { tech: t });
+  };
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
   const offs = useMemo(() => spreadOffsets(moves.filter((m) => !m.free).map((m) => ({ key: m.id, x: m.x, y: m.y })), asp), [moves, asp]);
@@ -411,7 +432,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
         sel > 0 && h("button", { type: "button", className: moves[sel].together ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => updateSel({ together: !moves[sel].together }) }, h(Link2, { size: 14 }), moves[sel].together ? " Same step as the previous move" : " Make this the same step as the previous move"),
         moves[sel].free ? h("div", { className: "cl-beta-free" }, h("span", null, "Free limb:"), [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", className: (moves[sel].dir || 0) === dir ? "active" : "", onClick: () => updateSel({ dir }) }, label))) : h(SurfacePicker, { value: moves[sel].surf || "hold", onChange: (s) => updateSel({ surf: s, color: s === "wall" ? null : moves[sel].color }) }),
         h("p", { className: "cl-section-caption", style: { margin: "6px 0 0" } }, "Technique (tap ? to see how)"),
-        h(TechniquePicker, { value: moves[sel].tech || null, onChange: (t) => updateSel({ tech: t }) }),
+        h(TechniquePicker, { value: moves[sel].tech || null, onChange: (t) => setTech(t) }),
         h("input", { className: "cl-input", value: moves[sel].note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
         h("button", { type: "button", className: "cl-btn-ghost", onClick: removeSel }, h(Trash2, { size: 14 }), " Delete this move"))
         : h("div", { className: "cl-beta-actions" },
