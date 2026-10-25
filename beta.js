@@ -252,11 +252,10 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
   const u = useMemo(() => stickScale(moves, asp, build), [moves, asp, build]);
   const target = useMemo(() => poseAt(moves, step, asp, u, build, beta && beta.poses), [moves, step, asp, u, build, beta]);
   const [pose, resetPose, poseVisible] = usePoseTween(target, stick, speed);
-  const [resume, setResume] = useState(false); // paused part-way: play continues, otherwise it starts from the beginning
+  // play continues from the step you're on (from the start again once it has reached the end)
   const toggle = () => {
-    if (playing) { setPlaying(false); setResume(true); return; }
-    if (!(resume && step > 0 && step < n)) setStep(0);
-    setResume(false);
+    if (playing) { setPlaying(false); return; }
+    if (step >= n) setStep(0);
     setPlaying(true);
   };
   const SPEEDS = [0.5, 1, 2];
@@ -272,7 +271,7 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
     h("div", { className: "cl-beta-seg" },
       h("button", { type: "button", className: !stick ? "active" : "", onClick: () => setStick(false) }, "Holds"),
       h("button", { type: "button", className: stick ? "active" : "", onClick: () => setStick(true) }, h(PersonStanding, { size: 13 }), " Stickman")));
-  const dots = n <= 14 ? h("div", { className: "cl-beta-dots" }, Array.from({ length: n + 1 }, (_, i) => h("button", { key: i, type: "button", className: i === step ? "active" : i < step ? "done" : "", onClick: () => { setPlaying(false); setResume(false); setStep(i); }, "aria-label": i === 0 ? "Start" : `Step ${i}` }, i === 0 ? "S" : i)))
+  const dots = n <= 14 ? h("div", { className: "cl-beta-dots" }, Array.from({ length: n + 1 }, (_, i) => h("button", { key: i, type: "button", className: i === step ? "active" : i < step ? "done" : "", onClick: () => { setPlaying(false); setStep(i); }, "aria-label": i === 0 ? "Start" : `Step ${i}` }, i === 0 ? "S" : i)))
     : h("input", { type: "range", className: "cl-beta-range", min: 0, max: n, value: step, onChange: (e) => { setPlaying(false); setStep(Number(e.target.value)); }, "aria-label": "Move" });
   const caption = h("div", { className: "cl-beta-card" }, cur ? h(React.Fragment, null,
     h("div", { className: "cl-beta-cardhead" }, h("b", null, `Step ${step}`), h("span", null, stepLabel(cur))),
@@ -287,9 +286,9 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
   return h("div", { className: "cl-beta-player" },
     stage,
     h("div", { className: "cl-beta-controls" },
-      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setResume(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 20 })),
+      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 20 })),
       h("button", { type: "button", className: "cl-beta-btn primary", onClick: toggle, "aria-label": playing ? "Pause" : "Play" }, playing ? h(Pause, { size: 22 }) : h(Play, { size: 22 })),
-      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setResume(false); setStep((s) => Math.min(n, s + 1)); }, "aria-label": "Next step" }, h(ChevronRight, { size: 20 })),
+      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.min(n, s + 1)); }, "aria-label": "Next step" }, h(ChevronRight, { size: 20 })),
       dots,
       h("button", { type: "button", className: "cl-beta-speed", onClick: () => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]), "aria-label": "Playback speed" }, `${speed}×`),
       stick && h("button", { type: "button", className: tune ? "cl-beta-btn on" : "cl-beta-btn", onClick: () => setTune((v) => !v), "aria-label": "Stickman size" }, h(SlidersHorizontal, { size: 17 }))),
