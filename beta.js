@@ -214,14 +214,14 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
   const moves = (beta && beta.moves) || [];
   const groups = useMemo(() => groupMoves(moves), [moves]);
   const n = groups.length;
-  const [step, setStep] = useState(n);
+  const [step, setStep] = useState(Math.min(1, n)); // the preview opens on the starting position
   // the beta was edited: show the new version from its last step, drop the old pose and any old video
   const sig = useMemo(() => JSON.stringify(moves), [beta]);
   const sigRef = useRef(sig);
   useEffect(() => {
     if (sigRef.current === sig) return;
     sigRef.current = sig;
-    setPlaying(false); setStep(groupMoves(moves).length); resetPose(); setVid(null);
+    setPlaying(false); setStep(Math.min(1, groupMoves(moves).length)); resetPose(); setVid(null);
   }, [sig]);
   const [playing, setPlaying] = useState(false);
   const [stick, setStick] = useState(false);
