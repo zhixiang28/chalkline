@@ -42,6 +42,8 @@ export function groupMoves(moves) {
   if (carry.length) { if (out.length) out[out.length - 1] = out[out.length - 1].concat(carry).sort((a, c) => a.idx - c.idx); else out.push(carry); }
   return out;
 }
+// a step shares one technique (e.g. a dyno throws both hands together)
+export const stepTech = (g) => { const m = (g || []).find((x) => x.tech && TECH_BY_ID[x.tech]); return m ? m.tech : null; };
 export const stepOfMove = (moves) => { const map = []; groupMoves(moves).forEach((g, gi) => g.forEach((m) => { map[m.idx] = gi + 1; })); return map; };
 
 // where every limb is after `step` steps
@@ -158,11 +160,14 @@ export function BetaLegend() {
 // eases the stick figure from its last pose to the target one (joint to joint, so limbs never stretch on the way)
 function usePoseTween(target, on, speed, instant) {
   const [pose, setPose] = useState(null);
+  const [visible, setVisible] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
     if (!on) return undefined;
+    if (!target) { setVisible(false); return undefined; } // before the first step: fade the figure out but keep its last pose
+    setVisible(true);
     const from = ref.current;
-    if (instant || !from || !target) { ref.current = target; setPose(target); return undefined; }
+    if (instant || !from) { ref.current = target; setPose(target); return undefined; }
     let raf = 0, t0 = 0;
     const tick = (ts) => {
       if (!t0) t0 = ts;
@@ -174,16 +179,18 @@ function usePoseTween(target, on, speed, instant) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [target, on, speed, instant]);
-  return [pose, () => { ref.current = null; setPose(null); }];
+  return [pose, () => { ref.current = null; setPose(null); setVisible(false); }, visible];
 }
 
-function Stickman({ pose, asp, opacity }) {
+function Stickman({ pose, asp, opacity, visible }) {
   const P = pose;
+  const [on, setOn] = useState(false);
+  useEffect(() => { const id = requestAnimationFrame(() => setOn(true)); return () => cancelAnimationFrame(id); }, []);
   if (!P) return null;
   const L = poseLines(P);
   const col = (k) => LIMBS[k].color;
   const body = (key, d, w, c) => h("path", { key, d, fill: "none", stroke: c, strokeWidth: w, strokeLinecap: "round", strokeLinejoin: "round" });
-  return h("svg", { className: "cl-beta-svg stick", style: opacity != null && opacity < 1 ? { opacity } : void 0, viewBox: `0 0 100 ${100 * asp}`, preserveAspectRatio: "none" },
+  return h("svg", { className: "cl-beta-svg stick", style: { opacity: on && visible !== false ? (opacity == null ? 1 : opacity) : 0, transition: "opacity 0.7s ease" }, viewBox: `0 0 100 ${100 * asp}`, preserveAspectRatio: "none" },
     [["torso", L.torso, 2.4], ["sh", L.shoulders, 2], ["hp", L.hips, 2], ["LA", L.LA, 2], ["RA", L.RA, 2], ["LL", L.LL, 2.1], ["RL", L.RL, 2.1]].map(([k, d, w]) => body("o" + k, d, w + 1.6, "rgba(0,0,0,0.65)")),
     h("circle", { cx: P.head.x, cy: P.head.y, r: P.headR + 0.8, fill: "rgba(0,0,0,0.65)" }),
     body("torso", L.torso, 2.4, "#F2F0E9"), body("sh", L.shoulders, 2, "#F2F0E9"), body("hp", L.hips, 2, "#F2F0E9"),
@@ -252,17 +259,20 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
   // smooth movement of the stickman between steps (joint to joint, so limbs never stretch on the way)
   const u = useMemo(() => stickScale(moves, asp, build), [moves, asp, build]);
   const target = useMemo(() => poseAt(moves, step, asp, u, build, beta && beta.poses), [moves, step, asp, u, build, beta]);
-  const [pose, resetPose] = usePoseTween(target, stick, speed);
+  const [pose, resetPose, poseVisible] = usePoseTween(target, stick, speed);
+  const [resume, setResume] = useState(false); // paused part-way: play continues, otherwise it starts from the beginning
   const toggle = () => {
-    if (!playing && step >= n) setStep(0);
-    setPlaying((p) => !p);
+    if (playing) { setPlaying(false); setResume(true); return; }
+    if (!(resume && step > 0 && step < n)) setStep(0);
+    setResume(false);
+    setPlaying(true);
   };
   const SPEEDS = [0.5, 1, 2];
-  const curTech = cur && cur.map((m) => m.tech).find((t) => t && TECH_BY_ID[t]);
+  const curTech = stepTech(cur);
   const stage = h("div", { className: "cl-beta-stage" },
     h("img", { src: photo, alt: "Wall with beta", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
     !stick && h(Trails, { moves, step, activeGroup: step - 1 }),
-    stick && h(Stickman, { pose, asp, opacity: build.opacity }),
+    stick && h(Stickman, { pose, asp, opacity: build.opacity, visible: poseVisible }),
     !stick && Object.keys(pos).map((k) => h(Marker, { key: k, m: pos[k], off: offs[k], active: pos[k].gi === step - 1 })),
     h("button", { type: "button", className: "cl-beta-tap", onClick: toggle, "aria-label": playing ? "Pause" : "Play" }, null),
     onSaveBeta && h("button", { type: "button", className: "cl-beta-editbtn", onClick: () => { setPlaying(false); setEditing(true); } }, h(Pencil, { size: 13 }), " Edit beta"),
@@ -270,24 +280,24 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
     h("div", { className: "cl-beta-seg" },
       h("button", { type: "button", className: !stick ? "active" : "", onClick: () => setStick(false) }, "Holds"),
       h("button", { type: "button", className: stick ? "active" : "", onClick: () => setStick(true) }, h(PersonStanding, { size: 13 }), " Stickman")));
-  const dots = n <= 14 ? h("div", { className: "cl-beta-dots" }, Array.from({ length: n + 1 }, (_, i) => h("button", { key: i, type: "button", className: i === step ? "active" : i < step ? "done" : "", onClick: () => { setPlaying(false); setStep(i); }, "aria-label": i === 0 ? "Start" : `Step ${i}` }, i === 0 ? "S" : i)))
+  const dots = n <= 14 ? h("div", { className: "cl-beta-dots" }, Array.from({ length: n + 1 }, (_, i) => h("button", { key: i, type: "button", className: i === step ? "active" : i < step ? "done" : "", onClick: () => { setPlaying(false); setResume(false); setStep(i); }, "aria-label": i === 0 ? "Start" : `Step ${i}` }, i === 0 ? "S" : i)))
     : h("input", { type: "range", className: "cl-beta-range", min: 0, max: n, value: step, onChange: (e) => { setPlaying(false); setStep(Number(e.target.value)); }, "aria-label": "Move" });
   const caption = h("div", { className: "cl-beta-card" }, cur ? h(React.Fragment, null,
     h("div", { className: "cl-beta-cardhead" }, h("b", null, `Step ${step}`), h("span", null, stepLabel(cur))),
+    stepTech(cur) && h("div", { className: "cl-beta-mline" }, h("span", { className: "cl-beta-tech" }, TECH_BY_ID[stepTech(cur)].name, h(TechniqueHelpButton, { id: stepTech(cur) }))),
     cur.map((m) => h("div", { key: m.id, className: "cl-beta-mline" },
       h("span", { className: "cl-beta-chipc lim" }, h("i", { style: { background: LIMBS[m.limb].color } }), LIMBS[m.limb].label),
       m.free ? h("span", { className: "cl-beta-chipc" }, m.dir ? `free · out to the ${m.dir < 0 ? "left" : "right"}` : "free · hanging") : h(React.Fragment, null,
         m.surf && m.surf !== "hold" && h("span", { className: "cl-beta-chipc" }, m.surf === "wall" ? "on the wall" : "on a volume"),
         m.color && m.surf !== "wall" && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold")),
-      m.tech && TECH_BY_ID[m.tech] && h("span", { className: "cl-beta-tech" }, TECH_BY_ID[m.tech].name, h(TechniqueHelpButton, { id: m.tech })),
       m.note && h("p", null, m.note))))
     : h("span", { className: "cl-hint" }, "Press play, tap a step number, or tap the photo."));
   return h("div", { className: "cl-beta-player" },
     stage,
     h("div", { className: "cl-beta-controls" },
-      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 20 })),
+      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setResume(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 20 })),
       h("button", { type: "button", className: "cl-beta-btn primary", onClick: toggle, "aria-label": playing ? "Pause" : "Play" }, playing ? h(Pause, { size: 22 }) : h(Play, { size: 22 })),
-      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.min(n, s + 1)); }, "aria-label": "Next step" }, h(ChevronRight, { size: 20 })),
+      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setResume(false); setStep((s) => Math.min(n, s + 1)); }, "aria-label": "Next step" }, h(ChevronRight, { size: 20 })),
       dots,
       h("button", { type: "button", className: "cl-beta-speed", onClick: () => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]), "aria-label": "Playback speed" }, `${speed}×`),
       stick && h("button", { type: "button", className: tune ? "cl-beta-btn on" : "cl-beta-btn", onClick: () => setTune((v) => !v), "aria-label": "Stickman size" }, h(SlidersHorizontal, { size: 17 }))),
@@ -443,11 +453,14 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })), ...savedPoses() } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
   // some techniques (dyno) throw both hands / both feet at once: group this move with the previous one
-  const setTech = (t) => {
-    const m = moves[sel], p = sel > 0 ? moves[sel - 1] : null;
+  const setTech = (t) => setMoves((ms) => {
+    const m = ms[sel], p = sel > 0 ? ms[sel - 1] : null;
     const pair = t === "dyno" && p && !m.together && p.limb !== m.limb && LIMBS[p.limb].kind === LIMBS[m.limb].kind;
-    updateSel(pair ? { tech: t, together: true } : { tech: t });
-  };
+    const next = ms.map((x, i) => (pair && i === sel ? { ...x, together: true } : { ...x }));
+    const grp = groupMoves(next).find((g) => g.some((x) => x.idx === sel));
+    grp.forEach((x) => { next[x.idx].tech = t; });
+    return next;
+  });
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
   // stickman preview: shows the pose at the selected step (or the last one) and lets you drag its joints
@@ -519,6 +532,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       moves.length > 0 && h("button", { type: "button", className: tog ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => setTog(!tog) }, h(Link2, { size: 13 }), tog ? " Same step: ON" : " Same step")),
     h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, `${LIMBS[limb].label} off the wall`), dirChips(null, addFree)));
   const m0 = sel != null ? moves[sel] : null;
+  const curStepTech = sel != null ? stepTech(groups.find((g) => g.some((x) => x.idx === sel))) : null;
   const editPanel = m0 && h("div", { className: "cl-beta-panel" },
     h("div", { className: "cl-beta-edhead" }, h("b", null, `Step ${steps[sel]} · ${LIMBS[m0.limb].label}${m0.free ? " (free)" : ""}`), h("button", { type: "button", className: "cl-icon-btn", onClick: () => { setSel(null); setTechOpen(false); }, "aria-label": "Close editor" }, h(X, { size: 16 }))),
     h("div", { className: "compact" }, limbButtons),
@@ -526,8 +540,8 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       h("span", { className: "cl-beta-lab" }, m0.free ? "Free limb" : "On a"),
       m0.free ? dirChips(m0.dir || 0, (dir) => updateSel({ dir })) : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
       sel > 0 && h("button", { type: "button", className: m0.together ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => updateSel({ together: !m0.together }) }, h(Link2, { size: 13 }), " Same step as previous")),
-    h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, m0.tech && TECH_BY_ID[m0.tech] ? TECH_BY_ID[m0.tech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
-    techOpen && h(TechniquePicker, { value: m0.tech || null, onChange: (t) => { setTech(t); setTechOpen(false); } }),
+    h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, curStepTech ? TECH_BY_ID[curStepTech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
+    techOpen && h(TechniquePicker, { value: curStepTech, onChange: (t) => { setTech(t); setTechOpen(false); } }),
     h("input", { className: "cl-input", value: m0.note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
     h("div", { className: "cl-beta-order" },
       h("button", { type: "button", onClick: () => shiftStep(-1), disabled: steps[sel] <= 1 }, "↑ Step earlier"),
@@ -700,7 +714,7 @@ export async function recordBetaVideo({ photo, beta, title, subtitle, build, onP
     if (t >= LEAD) { const k = Math.min(n, Math.floor((t - LEAD) / (TWEEN + HOLD))) + 1; step = Math.min(n, k); const local = t - LEAD - (step - 1) * (TWEEN + HOLD); const tt = Math.min(1, Math.max(0, local / TWEEN)); e = tt < 0.5 ? 2 * tt * tt : 1 - Math.pow(-2 * tt + 2, 2) / 2; }
     const prev = step > 1 ? poses[step - 1] : null;
     const P = step ? lerpPose(prev, poses[step], e) : null;
-    if (P) paintPoseSoft(ctx, P, F, unit, bd.opacity);
+    if (P) paintPoseSoft(ctx, P, F, unit, bd.opacity * (step === 1 ? e : 1));
     if (step) {
       const pos = positionsAt(moves, step);
       const g = groups[step - 1];
@@ -708,7 +722,7 @@ export async function recordBetaVideo({ photo, beta, title, subtitle, build, onP
       ctx.fillText(`Step ${step}/${n}`, ax, 1112);
       ctx.font = "600 28px sans-serif"; ctx.fillStyle = "#D9D4C4";
       ctx.fillText(g.map((m) => m.limb + (m.free ? " free" : "")).join(" + "), ax, 1156);
-      const tech = g.map((m) => m.tech && TECH_BY_ID[m.tech] ? TECH_BY_ID[m.tech].name : "").filter(Boolean)[0];
+      const tech = stepTech(g) ? TECH_BY_ID[stepTech(g)].name : "";
       if (tech) { ctx.fillStyle = "#FF8A4C"; ctx.fillText(tech, ax, 1198); }
     }
     ctx.fillStyle = "#6F6C60"; ctx.font = "700 22px sans-serif"; ctx.textAlign = "right"; ctx.fillText("CHALKLINE", W - ax, 1240);
