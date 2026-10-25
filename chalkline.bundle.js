@@ -4818,6 +4818,11 @@ function ChalklineApp() {
         .cl-qp-namerow .cl-btn-ghost { width: auto; padding: 10px 16px; }
         .cl-qp-photook { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); padding: 8px 0; }
         .cl-qp-photook img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+        .cl-beta-order { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+        .cl-beta-order button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cl-beta-order button:disabled { opacity: 0.35; cursor: default; }
+        .cl-beta-ins { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--accent2); border-radius: 12px; font-size: 12.5px; margin: 6px 0; }
+        .cl-beta-ins button { background: var(--accent2); color: #fff; border: none; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
         .cl-add-option.primary b { color: var(--accent2); }
         .cl-session-bar { position: fixed; left: 8px; right: 8px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 49; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent2) 55%, var(--line)); box-shadow: 0 8px 22px rgba(0,0,0,0.35); max-width: 664px; margin: 0 auto; }
         .cl-session-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); animation: cl-blink 1.4s ease-in-out infinite; flex-shrink: 0; }
