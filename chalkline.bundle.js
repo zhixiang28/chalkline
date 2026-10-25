@@ -995,7 +995,7 @@ function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry
       !project && h("input", { className: "cl-input", value: name, onChange: (e) => setName(e.target.value), placeholder: "Name or colour (optional) — e.g. orange slab" }));
   } else {
     body = h(React.Fragment, null,
-      h("div", { className: "cl-qp-done" }, h("span", null, h(Check, { size: 34 })), h("b", null, done ? done.msg : ""), session && h("small", null, "Session · ", session.n + 0, " problems · ", session.sent, " sent")),
+      h("div", { className: "cl-qp-done" }, h("span", null, h(Check, { size: 34 })), h("b", null, done ? done.msg : ""), session && h("small", null, "Session · ", session.n, session.n === 1 ? " problem" : " problems", " · ", session.sent, " sent")),
       h("button", { type: "button", className: "cl-btn-primary cl-qp-next", onClick: next }, "Log next climb"),
       h("div", { className: "cl-qp-after" },
         h("input", { type: "file", accept: "image/*", id: "cl-qp-photo", className: "cl-file-hidden", onChange: addPhoto }),
