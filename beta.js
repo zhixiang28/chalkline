@@ -1,6 +1,6 @@
 // Beta builder + player: mark which hold each hand/foot uses, in order, and replay it step by step.
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowLeft, Play, Pause, Undo2, Trash2, Check, ChevronLeft, ChevronRight, ZoomIn, Sparkles, X, PersonStanding, Link2, Film, Share2, Download } from "lucide-react";
+import { ArrowLeft, Play, Pause, Undo2, Trash2, Check, ChevronLeft, ChevronRight, ZoomIn, Sparkles, X, PersonStanding, Link2, Film, Share2, Download, SlidersHorizontal } from "lucide-react";
 import { solvePose, poseLines } from "./stickman.js";
 import { TechniquePicker, TechniqueHelpButton, TECH_BY_ID } from "./technique.js";
 import { toImageData, detectHolds, growHoldAt, nameColor, rgb2hsv, COLOR_HEX } from "./holds.js";
@@ -102,12 +102,21 @@ export function stickScale(moves, asp, build) {
   }
   return u;
 }
-export function poseAt(moves, step, asp, u, build) {
+export function poseAt(moves, step, asp, u, build, poses) {
   const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || {}) };
   const pos = positionsAt(moves, step), t = {};
   Object.keys(pos).forEach((k) => { t[k] = { x: pos[k].x, y: pos[k].y * asp }; });
   if (!Object.keys(t).length) return null;
-  return solvePose(t, u, { armK: bd.arm, legK: bd.leg, torsoK: bd.torso, freeDir: freeAt(moves, step) });
+  const opts = { armK: bd.arm, legK: bd.leg, torsoK: bd.torso, freeDir: freeAt(moves, step) };
+  // hand-adjusted body for this step: core position and which way the elbows / knees bend
+  const g = groupMoves(moves)[step - 1], ov = poses && g && poses[g[0].id];
+  if (ov) {
+    const cv = (p) => (p ? { x: p.x, y: p.y * asp } : void 0);
+    if (ov.hip) opts.hip = cv(ov.hip);
+    if (ov.elbows) opts.elbows = { L: cv(ov.elbows.L), R: cv(ov.elbows.R) };
+    if (ov.knees) opts.knees = { L: cv(ov.knees.L), R: cv(ov.knees.R) };
+  }
+  return solvePose(t, u, opts);
 }
 export function lerpPose(A, B, e) {
   if (!A) return B;
@@ -146,6 +155,28 @@ export function BetaLegend() {
 }
 
 // ---------- stickman overlay ----------
+// eases the stick figure from its last pose to the target one (joint to joint, so limbs never stretch on the way)
+function usePoseTween(target, on, speed, instant) {
+  const [pose, setPose] = useState(null);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!on) return undefined;
+    const from = ref.current;
+    if (instant || !from || !target) { ref.current = target; setPose(target); return undefined; }
+    let raf = 0, t0 = 0;
+    const tick = (ts) => {
+      if (!t0) t0 = ts;
+      const t = Math.min(1, (ts - t0) / (700 / (speed || 1))), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const next = lerpPose(from, target, e);
+      ref.current = next; setPose(next);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, on, speed, instant]);
+  return [pose, () => { ref.current = null; setPose(null); }];
+}
+
 function Stickman({ pose, asp }) {
   const P = pose;
   if (!P) return null;
@@ -177,11 +208,20 @@ export function BetaPlayer({ photo, beta, onShare, title, subtitle }) {
   const groups = useMemo(() => groupMoves(moves), [moves]);
   const n = groups.length;
   const [step, setStep] = useState(n);
+  // the beta was edited: show the new version from its last step, drop the old pose and any old video
+  const sig = useMemo(() => JSON.stringify(moves), [beta]);
+  const sigRef = useRef(sig);
+  useEffect(() => {
+    if (sigRef.current === sig) return;
+    sigRef.current = sig;
+    setPlaying(false); setStep(groupMoves(moves).length); resetPose(); setVid(null);
+  }, [sig]);
   const [playing, setPlaying] = useState(false);
   const [stick, setStick] = useState(false);
   const [asp, setAsp] = useState(1.33);
   const [build, setBuildState] = useState(loadBuild);
   const [tune, setTune] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const [vid, setVid] = useState(null);
   useEffect(() => () => { if (vid && vid.url) URL.revokeObjectURL(vid.url); }, [vid && vid.url]);
   const makeVideo = async () => {
@@ -202,79 +242,68 @@ export function BetaPlayer({ photo, beta, onShare, title, subtitle }) {
   const setBuild = (patch) => setBuildState((b0) => { const nb = { ...b0, ...patch }; try { localStorage.setItem("chalkline_build", JSON.stringify(nb)); } catch {} return nb; });
   useEffect(() => {
     if (!playing) return undefined;
-    const t = setInterval(() => setStep((s) => { if (s >= n) { setPlaying(false); return n; } return s + 1; }), 1300);
+    const t = setInterval(() => setStep((s) => { if (s >= n) { setPlaying(false); return n; } return s + 1; }), 1300 / speed);
     return () => clearInterval(t);
-  }, [playing, n]);
+  }, [playing, n, speed]);
   const pos = useMemo(() => positionsAt(moves, step), [moves, step]);
   const cur = step > 0 ? groups[step - 1] : null;
   const offs = useMemo(() => spreadOffsets(Object.keys(pos).map((k) => ({ key: k, x: pos[k].x, y: pos[k].y })), asp), [pos, asp]);
   // smooth movement of the stickman between steps (joint to joint, so limbs never stretch on the way)
   const u = useMemo(() => stickScale(moves, asp, build), [moves, asp, build]);
-  const target = useMemo(() => poseAt(moves, step, asp, u, build), [moves, step, asp, u, build]);
-  const [pose, setPose] = useState(null);
-  const poseRef = useRef(null);
-  useEffect(() => {
-    if (!stick) return undefined;
-    const from = poseRef.current;
-    if (!from || !target) { poseRef.current = target; setPose(target); return undefined; }
-    let raf = 0, t0 = 0;
-    const tick = (ts) => {
-      if (!t0) t0 = ts;
-      const t = Math.min(1, (ts - t0) / 700), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const next = lerpPose(from, target, e);
-      poseRef.current = next; setPose(next);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, stick]);
+  const target = useMemo(() => poseAt(moves, step, asp, u, build, beta && beta.poses), [moves, step, asp, u, build, beta]);
+  const [pose, resetPose] = usePoseTween(target, stick, speed);
   const toggle = () => {
     if (!playing && step >= n) setStep(0);
     setPlaying((p) => !p);
   };
+  const SPEEDS = [0.5, 1, 2];
+  const curTech = cur && cur.map((m) => m.tech).find((t) => t && TECH_BY_ID[t]);
+  const stage = h("div", { className: stick ? "cl-beta-stage dim" : "cl-beta-stage" },
+    h("img", { src: photo, alt: "Wall with beta", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
+    !stick && h(Trails, { moves, step, activeGroup: step - 1 }),
+    stick && h(Stickman, { pose, asp }),
+    Object.keys(pos).map((k) => h(Marker, { key: k, m: pos[k], off: offs[k], active: pos[k].gi === step - 1 })),
+    h("button", { type: "button", className: "cl-beta-tap", onClick: toggle, "aria-label": playing ? "Pause" : "Play" }, !playing && step === 0 && h("span", { className: "cl-beta-bigplay" }, h(Play, { size: 30 }))),
+    h("div", { className: "cl-beta-badge" }, step === 0 ? "Start" : `Step ${step}/${n}`, curTech ? h("em", null, TECH_BY_ID[curTech].name) : null),
+    h("div", { className: "cl-beta-seg" },
+      h("button", { type: "button", className: !stick ? "active" : "", onClick: () => setStick(false) }, "Holds"),
+      h("button", { type: "button", className: stick ? "active" : "", onClick: () => setStick(true) }, h(PersonStanding, { size: 13 }), " Stickman")));
+  const dots = n <= 14 ? h("div", { className: "cl-beta-dots" }, Array.from({ length: n + 1 }, (_, i) => h("button", { key: i, type: "button", className: i === step ? "active" : i < step ? "done" : "", onClick: () => { setPlaying(false); setStep(i); }, "aria-label": i === 0 ? "Start" : `Step ${i}` }, i === 0 ? "S" : i)))
+    : h("input", { type: "range", className: "cl-beta-range", min: 0, max: n, value: step, onChange: (e) => { setPlaying(false); setStep(Number(e.target.value)); }, "aria-label": "Move" });
+  const caption = h("div", { className: "cl-beta-card" }, cur ? h(React.Fragment, null,
+    h("div", { className: "cl-beta-cardhead" }, h("b", null, `Step ${step}`), h("span", null, stepLabel(cur))),
+    cur.map((m) => h("div", { key: m.id, className: "cl-beta-mline" },
+      h("span", { className: "cl-beta-chipc lim" }, h("i", { style: { background: LIMBS[m.limb].color } }), LIMBS[m.limb].label),
+      m.free ? h("span", { className: "cl-beta-chipc" }, m.dir ? `free · out to the ${m.dir < 0 ? "left" : "right"}` : "free · hanging") : h(React.Fragment, null,
+        m.surf && m.surf !== "hold" && h("span", { className: "cl-beta-chipc" }, m.surf === "wall" ? "on the wall" : "on a volume"),
+        m.color && m.surf !== "wall" && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold")),
+      m.tech && TECH_BY_ID[m.tech] && h("span", { className: "cl-beta-tech" }, TECH_BY_ID[m.tech].name, h(TechniqueHelpButton, { id: m.tech })),
+      m.note && h("p", null, m.note))))
+    : h("span", { className: "cl-hint" }, "Press play, tap a step number, or tap the photo."));
   return h("div", { className: "cl-beta-player" },
-    h("div", { className: stick ? "cl-beta-stage dim" : "cl-beta-stage" },
-      h("img", { src: photo, alt: "Wall with beta", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
-      !stick && h(Trails, { moves, step, activeGroup: step - 1 }),
-      stick && h(Stickman, { pose, asp }),
-      Object.keys(pos).map((k) => h(Marker, { key: k, m: pos[k], off: offs[k], active: pos[k].gi === step - 1 }))),
+    stage,
     h("div", { className: "cl-beta-controls" },
-      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous move" }, h(ChevronLeft, { size: 18 })),
-      h("button", { type: "button", className: "cl-beta-btn primary", onClick: toggle, "aria-label": playing ? "Pause" : "Play" }, playing ? h(Pause, { size: 18 }) : h(Play, { size: 18 })),
-      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.min(n, s + 1)); }, "aria-label": "Next move" }, h(ChevronRight, { size: 18 })),
-      h("input", { type: "range", className: "cl-beta-range", min: 0, max: n, value: step, onChange: (e) => { setPlaying(false); setStep(Number(e.target.value)); }, "aria-label": "Move" }),
-      h("span", { className: "cl-beta-count" }, step, "/", n)),
-    h("div", { className: "cl-beta-modes" },
-      h("button", { type: "button", className: !stick ? "cl-beta-mode active" : "cl-beta-mode", onClick: () => setStick(false) }, "Holds"),
-      h("button", { type: "button", className: stick ? "cl-beta-mode active" : "cl-beta-mode", onClick: () => setStick(true) }, h(PersonStanding, { size: 14 }), " Stickman")),
-    stick && h("div", { className: "cl-beta-tune" },
-      h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setTune((v) => !v) }, tune ? "Hide size" : "Adjust stickman size"),
-      tune && h("div", { className: "cl-beta-tunebox" },
-        [["size", "Size", 0.3, 1.6]].map(([k, label, lo, hi]) => h("label", { key: k, className: "cl-beta-tunerow" },
-          h("span", null, label), h("input", { type: "range", min: lo, max: hi, step: 0.05, value: build[k], onChange: (e) => setBuild({ [k]: Number(e.target.value) }) }), h("em", null, Math.round(build[k] * 100) + "%"))),
-        h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setBuildState(() => { try { localStorage.removeItem("chalkline_build"); } catch {} return DEFAULT_BUILD; }) }, "Reset"))),
-    h("div", { className: "cl-beta-caption" }, cur ? h(React.Fragment, null,
-      h("b", null, `Step ${step} \u00B7 ${stepLabel(cur)}`),
-      cur.map((m) => h("div", { key: m.id, className: "cl-beta-mline" },
-        h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: LIMBS[m.limb].color } }), LIMBS[m.limb].short === "L" ? "Left " : "Right ", LIMBS[m.limb].kind),
-        m.free && h("span", { className: "cl-beta-chipc" }, m.dir ? `free \u00B7 out to the ${m.dir < 0 ? "left" : "right"}` : "free \u00B7 hanging"),
-        m.surf && m.surf !== "hold" && !m.free && h("span", { className: "cl-beta-chipc" }, "on ", m.surf === "wall" ? "the wall" : "a volume"),
-        m.color && m.surf !== "wall" && !m.free && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold"),
-        m.tech && TECH_BY_ID[m.tech] && h("span", { className: "cl-beta-tech" }, TECH_BY_ID[m.tech].name, h(TechniqueHelpButton, { id: m.tech })),
-        m.note && h("p", null, m.note)))) : h("span", { className: "cl-hint" }, "Press play to watch the beta, or drag the slider.")),
-    h(BetaLegend),
-    videoSupported() && h("div", { className: "cl-beta-vid" },
-      !vid && h("button", { type: "button", className: "cl-btn-ghost cl-beta-share", onClick: makeVideo }, h(Film, { size: 14 }), " Save stickman video (share / download)"),
-      vid && vid.busy && h("div", { className: "cl-beta-vidprog" }, h("span", null, `Making video\u2026 ${Math.round(vid.p * 100)}%`), h("i", { style: { width: `${vid.p * 100}%` } })),
-      vid && vid.error && h("p", { className: "cl-hint" }, "Couldn't make the video on this device. ", h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setVid(null) }, "Try again")),
-      vid && vid.url && h("div", { className: "cl-beta-vidout" },
+      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 20 })),
+      h("button", { type: "button", className: "cl-beta-btn primary", onClick: toggle, "aria-label": playing ? "Pause" : "Play" }, playing ? h(Pause, { size: 22 }) : h(Play, { size: 22 })),
+      h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.min(n, s + 1)); }, "aria-label": "Next step" }, h(ChevronRight, { size: 20 })),
+      dots,
+      h("button", { type: "button", className: "cl-beta-speed", onClick: () => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]), "aria-label": "Playback speed" }, `${speed}×`),
+      stick && h("button", { type: "button", className: tune ? "cl-beta-btn on" : "cl-beta-btn", onClick: () => setTune((v) => !v), "aria-label": "Stickman size" }, h(SlidersHorizontal, { size: 17 }))),
+    stick && tune && h("div", { className: "cl-beta-tunebox" }, h("label", { className: "cl-beta-tunerow" }, h("span", null, "Stickman size"), h("input", { type: "range", min: 0.3, max: 1.6, step: 0.05, value: build.size, onChange: (e) => setBuild({ size: Number(e.target.value) }) }), h("em", null, Math.round(build.size * 100) + "%")), h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setBuildState(() => { try { localStorage.removeItem("chalkline_build"); } catch {} return DEFAULT_BUILD; }) }, "Reset")),
+    caption,
+    (videoSupported() || onShare) && h("div", { className: "cl-beta-actions2" },
+      videoSupported() && !vid && h("button", { type: "button", className: "cl-beta-act", onClick: makeVideo }, h(Film, { size: 16 }), h("span", null, "Save video")),
+      onShare && h("button", { type: "button", className: "cl-beta-act", onClick: onShare }, h(Share2, { size: 16 }), h("span", null, "Share card"))),
+    videoSupported() && vid && h("div", { className: "cl-beta-vid" },
+      vid.busy && h("div", { className: "cl-beta-vidprog" }, h("span", null, `Making video… ${Math.round(vid.p * 100)}%`), h("i", { style: { width: `${vid.p * 100}%` } })),
+      vid.error && h("p", { className: "cl-hint" }, "Couldn't make the video on this device. ", h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setVid(null) }, "Try again")),
+      vid.url && h("div", { className: "cl-beta-vidout" },
         h("video", { src: vid.url, controls: true, playsInline: true, loop: true, muted: true, autoPlay: true }),
         h("div", { className: "cl-beta-vidbtns" },
           h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: shareVideo }, h(Share2, { size: 14 }), " Share"),
           h("button", { type: "button", className: "cl-btn-ghost", onClick: downloadVideo }, h(Download, { size: 14 }), " Download ." + vid.ext),
           h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setVid(null) }, "Redo")),
-        vid.ext === "webm" && h("p", { className: "cl-hint" }, "This phone saves .webm. Most apps and Android accept it; Instagram may need an .mp4."))),
-    onShare && h("button", { type: "button", className: "cl-btn-ghost cl-beta-share", onClick: onShare }, "Share beta card"));
+        vid.ext === "webm" && h("p", { className: "cl-hint" }, "This phone saves .webm. Most apps and Android accept it; Instagram may need an .mp4."))));
 }
 
 // ---------- editor ----------
@@ -289,6 +318,14 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   const [ping, setPing] = useState(null);
   const [tog, setTog] = useState(false);
   const [surf, setSurf] = useState("hold");
+  const [techOpen, setTechOpen] = useState(false);
+  const [stickOn, setStickOn] = useState(false);
+  const [poses, setPoses] = useState(() => ({ ...((beta && beta.poses) || {}) }));
+  const [dragKey, setDragKey] = useState(null);
+  const [playing, setPlaying] = useState(false);
+  const [playStep, setPlayStep] = useState(1);
+  const boxRef = useRef();
+  const [fitW, setFitW] = useState(0);
   const [ins, setIns] = useState(null); // when set, new moves are inserted after this index instead of at the end
   const [asp, setAsp] = useState(1.33);
   const stageRef = useRef();
@@ -400,7 +437,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     place(fx * 100, fy * 100, color);
   };
 
-  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })) } : null);
+  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })), ...savedPoses() } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
   // some techniques (dyno) throw both hands / both feet at once: group this move with the previous one
   const setTech = (t) => {
@@ -410,58 +447,131 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   };
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
+  // stickman preview: shows the pose at the selected step (or the last one) and lets you drag its joints
+  const groupsAll = useMemo(() => groupMoves(moves), [moves]);
+  const nSteps = groupsAll.length;
+  const viewStep = Math.max(1, Math.min(nSteps || 1, playing ? playStep : sel != null ? steps[sel] : nSteps));
+  const uBody = useMemo(() => (moves.length ? stickScale(moves, asp, loadBuild()) : 0), [moves, asp]);
+  const target = useMemo(() => (stickOn && moves.length ? poseAt(moves, viewStep, asp, uBody, loadBuild(), poses) : null), [stickOn, moves, viewStep, asp, uBody, poses]);
+  const [pose] = usePoseTween(target, stickOn, 1, dragKey != null);
+  useEffect(() => {
+    if (!playing) return undefined;
+    const t = setInterval(() => setPlayStep((s) => { if (s >= nSteps) { setPlaying(false); return nSteps; } return s + 1; }), 1300);
+    return () => clearInterval(t);
+  }, [playing, nSteps]);
+  const gid = groupsAll[viewStep - 1] ? groupsAll[viewStep - 1][0].id : null;
+  const clampPct = (v) => Math.max(0, Math.min(100, v));
+  const stageXY = (e) => { const r = stageRef.current.getBoundingClientRect(); return { x: clampPct(((e.clientX - r.left) / r.width) * 100), y: clampPct(((e.clientY - r.top) / r.height) * 100) }; };
+  const startDrag = (key) => (e) => { e.stopPropagation(); e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} setDragKey(key); };
+  const onDragMove = (key) => (e) => {
+    if (dragKey !== key || !gid) return;
+    const p = stageXY(e);
+    if (key === "hip") setPoses((ps) => ({ ...ps, [gid]: { ...ps[gid], hip: p } }));
+    else if (key === "LE" || key === "RE") setPoses((ps) => ({ ...ps, [gid]: { ...ps[gid], elbows: { ...((ps[gid] || {}).elbows || {}), [key[0]]: p } } }));
+    else if (key === "LK" || key === "RK") setPoses((ps) => ({ ...ps, [gid]: { ...ps[gid], knees: { ...((ps[gid] || {}).knees || {}), [key[0]]: p } } }));
+    else { const at = positionsAt(moves, viewStep)[key]; if (at) setMoves((ms) => ms.map((m, i) => (i === at.idx ? { ...m, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 } : m))); }
+  };
+  const endDrag = () => setDragKey(null);
+  const savedPoses = () => {
+    const ids = new Set(groupsAll.map((g) => g[0].id)), o = {};
+    Object.keys(poses).forEach((k) => { if (ids.has(k) && poses[k] && Object.keys(poses[k]).length) o[k] = poses[k]; });
+    return Object.keys(o).length ? { poses: o } : {};
+  };
+  // at 1x the whole photo fits in the visible area; 2x / 3x zoom in from there
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return undefined;
+    const fit = () => { const w = el.clientWidth, hh = el.clientHeight; if (w && hh) setFitW(Math.max(120, Math.min(w, hh / asp))); };
+    fit();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    if (ro) ro.observe(el);
+    return () => { if (ro) ro.disconnect(); };
+  }, [asp]);
   const offs = useMemo(() => spreadOffsets(moves.filter((m) => !m.free).map((m) => ({ key: m.id, x: m.x, y: m.y })), asp), [moves, asp]);
 
+  const curLimb = sel != null ? moves[sel].limb : limb;
+  const groups = groupMoves(moves);
+  const selFree = sel != null && moves[sel].free;
+  const pickLimb = (k) => { if (sel != null) updateSel({ limb: k }); else setLimb(k); };
+  const addFree = (dir) => { addMove({ id: rid(), limb, free: true, dir, x: 50, y: 50, surf: "hold", color: null, note: "", tech: null, together: tog && moves.length > 0 }); setTog(false); setLimb(NEXT_LIMB[limb]); };
+  const insertAfterStep = (g) => { setIns(Math.max(...g.map((m) => m.idx))); setSel(null); };
+  const limbButtons = h("div", { className: "cl-beta-limbs" },
+    Object.keys(LIMBS).map((k) => h("button", { key: k, type: "button", className: curLimb === k ? "cl-beta-limb active" : "cl-beta-limb", style: curLimb === k ? { borderColor: LIMBS[k].color, color: LIMBS[k].color } : void 0, onClick: () => pickLimb(k) },
+      h("b", { className: `cl-beta-dot ${LIMBS[k].kind}`, style: { background: LIMBS[k].color } }), LIMBS[k].label)));
+  const dirChips = (value, onPick) => [["Hang", 0], ["Out ←", -1], ["Out →", 1]].map(([label, dir]) => h("button", { key: label, type: "button", className: value === dir ? "active" : "", onClick: () => onPick(dir) }, label));
+  const stepStrip = h("div", { className: "cl-beta-strip" },
+    moves.length === 0 && h("span", { className: "cl-hint" }, "Your steps will appear here"),
+    groups.map((g, gi) => h(React.Fragment, { key: gi },
+      h("div", { className: g.some((m) => m.idx === sel) ? "cl-beta-stepc active" : "cl-beta-stepc" },
+        h("span", { className: "cl-beta-stepn" }, gi + 1),
+        g.map((m) => h("button", { key: m.id, type: "button", className: sel === m.idx ? "cl-beta-pill active" : "cl-beta-pill", style: { background: LIMBS[m.limb].color, color: LIMBS[m.limb].ink, opacity: m.free ? 0.6 : 1 }, onClick: () => setSel(sel === m.idx ? null : m.idx) }, m.limb, m.free ? "~" : "", m.tech ? "•" : ""))),
+      h("button", { type: "button", className: ins != null && g.some((m) => m.idx === ins) ? "cl-beta-plus active" : "cl-beta-plus", onClick: () => (ins != null && g.some((m) => m.idx === ins) ? setIns(null) : insertAfterStep(g)), "aria-label": `Add a step after step ${gi + 1}` }, "+"))));
+  const addPanel = h("div", { className: "cl-beta-panel" },
+    ins != null && h("div", { className: "cl-beta-ins" }, h("span", null, `Adding after step ${steps[ins]} — pick a limb, tap the hold`), h("button", { type: "button", onClick: () => setIns(null) }, "Stop")),
+    moves.length === 0 && ins == null && h("p", { className: "cl-beta-tip" }, "Pick a limb, then tap the hold it uses. Do the moves in order."),
+    limbButtons,
+    h("div", { className: "cl-beta-row" },
+      h("span", { className: "cl-beta-lab" }, "On a"),
+      SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: surf === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => setSurf(k) }, label)),
+      moves.length > 0 && h("button", { type: "button", className: tog ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => setTog(!tog) }, h(Link2, { size: 13 }), tog ? " Same step: ON" : " Same step")),
+    h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, `${LIMBS[limb].label} off the wall`), dirChips(null, addFree)));
+  const m0 = sel != null ? moves[sel] : null;
+  const editPanel = m0 && h("div", { className: "cl-beta-panel" },
+    h("div", { className: "cl-beta-edhead" }, h("b", null, `Step ${steps[sel]} · ${LIMBS[m0.limb].label}${m0.free ? " (free)" : ""}`), h("button", { type: "button", className: "cl-icon-btn", onClick: () => { setSel(null); setTechOpen(false); }, "aria-label": "Close editor" }, h(X, { size: 16 }))),
+    h("div", { className: "compact" }, limbButtons),
+    h("div", { className: "cl-beta-row" },
+      h("span", { className: "cl-beta-lab" }, m0.free ? "Free limb" : "On a"),
+      m0.free ? dirChips(m0.dir || 0, (dir) => updateSel({ dir })) : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
+      sel > 0 && h("button", { type: "button", className: m0.together ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => updateSel({ together: !m0.together }) }, h(Link2, { size: 13 }), " Same step as previous")),
+    h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, m0.tech && TECH_BY_ID[m0.tech] ? TECH_BY_ID[m0.tech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
+    techOpen && h(TechniquePicker, { value: m0.tech || null, onChange: (t) => { setTech(t); setTechOpen(false); } }),
+    h("input", { className: "cl-input", value: m0.note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
+    h("div", { className: "cl-beta-order" },
+      h("button", { type: "button", onClick: () => shiftStep(-1), disabled: steps[sel] <= 1 }, "↑ Step earlier"),
+      h("button", { type: "button", onClick: () => shiftStep(1), disabled: steps[sel] >= groups.length }, "↓ Step later")));
   return h("div", { className: "cl-overlay cl-layer-top cl-beta-editor" },
     h("div", { className: "cl-overlay-header" },
       h("button", { className: "cl-icon-btn", onClick: onCancel, "aria-label": "Cancel" }, h(ArrowLeft, { size: 20 })),
       h("span", { className: "cl-overlay-title" }, "Build beta"),
       h("button", { className: "cl-icon-btn cl-beta-done", onClick: done, "aria-label": "Done" }, h(Check, { size: 20 }))),
-    h("div", { className: "cl-beta-body" },
-      h("div", { className: "cl-beta-tools" },
-        h("div", { className: "cl-beta-zoom" }, [1, 2, 3].map((z) => h("button", { key: z, type: "button", className: zoom === z ? "active" : "", onClick: () => setZoom(z) }, z === 1 ? h(ZoomIn, { size: 14 }) : null, `${z}×`))),
-        state === "loading" && h("span", { className: "cl-hint" }, "Finding holds…"),
-        state === "ready" && h("span", { className: "cl-hint" }, h(Sparkles, { size: 12 }), ` ${analysis.holds.length} holds found — tap any hold`)),
-      colorCounts.length > 0 && h("div", { className: "cl-beta-colors" },
-        h("button", { type: "button", className: !focus ? "cl-beta-color active" : "cl-beta-color", onClick: () => setFocus(null) }, "All"),
-        colorCounts.map(([k, c]) => h("button", { key: k, type: "button", className: focus === k ? "cl-beta-color active" : "cl-beta-color", onClick: () => setFocus(focus === k ? null : k) }, h("i", { style: { background: COLOR_HEX[k] } }), k, h("small", null, c)))),
-      h("div", { className: "cl-beta-scroll" },
-        h("div", {
-          className: "cl-beta-stage editing", ref: stageRef, style: { width: `${zoom * 100}%` },
-          onPointerDown: (e) => { down.current = { x: e.clientX, y: e.clientY }; },
-          onPointerUp: (e) => { const d0 = down.current; down.current = null; if (d0 && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) < 8) handleTap(e.clientX, e.clientY); },
-        },
-          h("img", { src: photo, alt: "", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
-          h("canvas", { ref: canvasRef, className: "cl-beta-canvas" }),
-          h(Trails, { moves, step: 9999, activeGroup: -1 }),
-          moves.map((m, i) => (m.free ? null : h(Marker, { key: m.id, m, off: offs[m.id], number: steps[i], selected: sel === i, small: zoom === 1 }))),
-          ping && h("span", { key: ping.k, className: "cl-beta-ping", style: { left: `${ping.x}%`, top: `${ping.y}%` } }))),
-      sel == null && h(SurfacePicker, { value: surf, onChange: setSurf }),
-      h("div", { className: "cl-beta-limbs" },
-        Object.keys(LIMBS).map((k) => h("button", { key: k, type: "button", className: (sel != null ? moves[sel].limb : limb) === k ? "cl-beta-limb active" : "cl-beta-limb", style: (sel != null ? moves[sel].limb : limb) === k ? { borderColor: LIMBS[k].color, color: LIMBS[k].color } : void 0, onClick: () => { if (sel != null) updateSel({ limb: k }); else setLimb(k); } }, h("b", { className: `cl-beta-dot ${LIMBS[k].kind}`, style: { background: LIMBS[k].color } }), LIMBS[k].label))),
-      h("div", { className: "cl-beta-moves" },
-        moves.length === 0 && h("span", { className: "cl-hint" }, "Pick a limb, then tap the hold it uses. Do your moves in order."),
-        moves.map((m, i) => h("button", { key: m.id, type: "button", className: sel === i ? "cl-beta-move active" : "cl-beta-move", onClick: () => setSel(sel === i ? null : i) }, m.together && i > 0 && h("em", null, "+"), h("b", { style: { background: LIMBS[m.limb].color, color: LIMBS[m.limb].ink } }, steps[i]), m.limb, m.free && h("small", null, "free"), m.tech && h("small", null, TECH_BY_ID[m.tech] ? TECH_BY_ID[m.tech].name : "")))),
-      sel == null && moves.length > 0 && h("button", { type: "button", className: tog ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => setTog(!tog) }, h(Link2, { size: 14 }), tog ? " Next tap is the same step as the previous move" : " Same step as previous move? (e.g. matching both hands)"),
-      sel == null && ins != null && h("div", { className: "cl-beta-ins" }, h("span", null, `Adding after step ${steps[ins]} \u2014 pick a limb, then tap the hold`), h("button", { type: "button", onClick: () => setIns(null) }, "Done")),
-      sel == null && h("div", { className: "cl-beta-free" },
-        h("span", null, `Let ${LIMBS[limb].label.toLowerCase()} go (free):`),
-        [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", onClick: () => { addMove({ id: rid(), limb, free: true, dir, x: 50, y: 50, surf: "hold", color: null, note: "", tech: null, together: tog && moves.length > 0 }); setTog(false); setLimb(NEXT_LIMB[limb]); } }, label))),
-      sel != null ? h("div", { className: "cl-beta-edit" },
-        h("p", { className: "cl-hint" }, moves[sel].free ? `Step ${steps[sel]}: ${LIMBS[moves[sel].limb].label} is free (off the wall). Tap the photo to put it on a hold instead.` : `Step ${steps[sel]} (${LIMBS[moves[sel].limb].label}): tap a limb above to change it, or tap the photo to move it to another hold.`),
-        sel > 0 && h("button", { type: "button", className: moves[sel].together ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => updateSel({ together: !moves[sel].together }) }, h(Link2, { size: 14 }), moves[sel].together ? " Same step as the previous move" : " Make this the same step as the previous move"),
-        moves[sel].free ? h("div", { className: "cl-beta-free" }, h("span", null, "Free limb:"), [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", className: (moves[sel].dir || 0) === dir ? "active" : "", onClick: () => updateSel({ dir }) }, label))) : h(SurfacePicker, { value: moves[sel].surf || "hold", onChange: (s) => updateSel({ surf: s, color: s === "wall" ? null : moves[sel].color }) }),
-        h("div", { className: "cl-beta-order" },
-          h("button", { type: "button", onClick: () => shiftStep(-1), disabled: steps[sel] <= 1 }, "\u2191 Step earlier"),
-          h("button", { type: "button", onClick: () => shiftStep(1), disabled: steps[sel] >= groupMoves(moves).length }, "\u2193 Step later"),
-          h("button", { type: "button", onClick: () => { const g = groupMoves(moves).find((gr) => gr.some((m) => m.idx === sel)); setIns(Math.max(...g.map((m) => m.idx))); setSel(null); } }, "+ Add a step after this")),
-        h("p", { className: "cl-section-caption", style: { margin: "6px 0 0" } }, "Technique (tap ? to see how)"),
-        h(TechniquePicker, { value: moves[sel].tech || null, onChange: (t) => setTech(t) }),
-        h("input", { className: "cl-input", value: moves[sel].note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
-        h("button", { type: "button", className: "cl-btn-ghost", onClick: removeSel }, h(Trash2, { size: 14 }), " Delete this move"))
-        : h("div", { className: "cl-beta-actions" },
-          h("button", { type: "button", className: "cl-btn-ghost", disabled: moves.length === 0, onClick: () => setMoves((ms) => ms.slice(0, -1)) }, h(Undo2, { size: 14 }), " Undo"),
-          h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: done }, "Done"))));
+    h("div", { className: "cl-beta-body ed" },
+      h("div", { className: "cl-beta-stagebox" },
+        h("div", { className: "cl-beta-tools" },
+          h("div", { className: "cl-beta-zoom" }, [1, 2, 3].map((z) => h("button", { key: z, type: "button", className: zoom === z ? "active" : "", onClick: () => setZoom(z) }, z === 1 ? h(ZoomIn, { size: 14 }) : null, `${z}×`))),
+          moves.length > 0 && h("button", { type: "button", className: stickOn ? "cl-beta-stog active" : "cl-beta-stog", onClick: () => { setStickOn((v) => !v); setPlaying(false); } }, h(PersonStanding, { size: 14 }), " Stickman"),
+          state === "loading" && h("span", { className: "cl-hint" }, "Finding holds…"),
+          state === "ready" && h("span", { className: "cl-hint" }, h(Sparkles, { size: 12 }), ` ${analysis.holds.length} holds found`)),
+        colorCounts.length > 0 && h("div", { className: "cl-beta-colors" },
+          h("button", { type: "button", className: !focus ? "cl-beta-color active" : "cl-beta-color", onClick: () => setFocus(null) }, "All"),
+          colorCounts.map(([k, c]) => h("button", { key: k, type: "button", className: focus === k ? "cl-beta-color active" : "cl-beta-color", onClick: () => setFocus(focus === k ? null : k) }, h("i", { style: { background: COLOR_HEX[k] } }), k, h("small", null, c)))),
+        h("div", { className: "cl-beta-scroll fit", ref: boxRef },
+          h("div", {
+            className: "cl-beta-stage editing", ref: stageRef, style: { width: fitW ? `${fitW * zoom}px` : `${zoom * 100}%` },
+            onPointerDown: (e) => { down.current = { x: e.clientX, y: e.clientY }; },
+            onPointerUp: (e) => { const d0 = down.current; down.current = null; if (d0 && Math.hypot(e.clientX - d0.x, e.clientY - d0.y) < 8) handleTap(e.clientX, e.clientY); },
+          },
+            h("img", { src: photo, alt: "", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
+            h("canvas", { ref: canvasRef, className: "cl-beta-canvas" }),
+            h(Trails, { moves, step: 9999, activeGroup: -1 }),
+            stickOn && pose && h(Stickman, { pose, asp }),
+            stickOn && pose && !playing && [["hip", pose.hip, "core"], ["LE", pose.LE, "joint"], ["RE", pose.RE, "joint"], ["LK", pose.LK, "joint"], ["RK", pose.RK, "joint"]]
+              .concat(Object.keys(positionsAt(moves, viewStep)).map((k) => [k, pose[k], "end"]))
+              .map(([key, p, kind]) => h("div", { key, className: `cl-beta-handle ${kind}${dragKey === key ? " drag" : ""}`, style: { left: `${p.x}%`, top: `${p.y / asp}%` }, onPointerDown: startDrag(key), onPointerMove: onDragMove(key), onPointerUp: endDrag, onPointerCancel: endDrag })),
+            moves.map((m, i) => (m.free ? null : h(Marker, { key: m.id, m, off: offs[m.id], number: steps[i], selected: sel === i, small: zoom === 1 }))),
+            ping && h("span", { key: ping.k, className: "cl-beta-ping", style: { left: `${ping.x}%`, top: `${ping.y}%` } })))),
+        stickOn && h("div", { className: "cl-beta-sstrip" },
+          h("button", { type: "button", className: "cl-beta-btn", disabled: viewStep <= 1, onClick: () => { setPlaying(false); setSel(groupsAll[viewStep - 2][0].idx); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 18 })),
+          h("button", { type: "button", className: "cl-beta-btn primary", onClick: () => { if (playing) setPlaying(false); else { setSel(null); setPlayStep(1); setPlaying(true); } }, "aria-label": playing ? "Pause" : "Play motion" }, playing ? h(Pause, { size: 18 }) : h(Play, { size: 18 })),
+          h("button", { type: "button", className: "cl-beta-btn", disabled: viewStep >= nSteps, onClick: () => { setPlaying(false); setSel(groupsAll[viewStep][0].idx); }, "aria-label": "Next step" }, h(ChevronRight, { size: 18 })),
+          h("span", { className: "cl-beta-slab" }, `Step ${viewStep}/${nSteps}`, h("small", null, "Drag \u25CF core, \u25C6 elbows & knees, \u25CB hands & feet")),
+          gid && poses[gid] && h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setPoses((ps) => { const n2 = { ...ps }; delete n2[gid]; return n2; }) }, "Reset pose")),
+      h("div", { className: "cl-beta-dock" },
+        stepStrip,
+        h("div", { className: "cl-beta-dockbody" }, sel != null ? editPanel : addPanel),
+        h("div", { className: "cl-beta-dockbar" },
+          sel != null
+            ? [h("button", { key: "d", type: "button", className: "cl-btn-ghost danger", onClick: () => { removeSel(); setTechOpen(false); } }, h(Trash2, { size: 14 }), " Delete"), h("button", { key: "k", type: "button", className: "cl-btn-primary", onClick: () => { setSel(null); setTechOpen(false); } }, "OK")]
+            : [h("button", { key: "u", type: "button", className: "cl-btn-ghost", disabled: moves.length === 0, onClick: () => setMoves((ms) => ms.slice(0, -1)) }, h(Undo2, { size: 14 }), " Undo"), h("button", { key: "n", type: "button", className: "cl-btn-primary", onClick: done }, "Save beta")]))));
 }
 
 // ---------- form field ----------
@@ -559,7 +669,7 @@ export async function recordBetaVideo({ photo, beta, title, subtitle, build, onP
   const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || loadBuild()) };
   const u = stickScale(moves, asp, bd);
   const poses = [null];
-  for (let s = 1; s <= n; s++) poses.push(poseAt(moves, s, asp, u, bd));
+  for (let s = 1; s <= n; s++) poses.push(poseAt(moves, s, asp, u, bd, beta.poses));
   const F = (p) => ({ x: dx + (p.x / 100) * dw, y: dy + (p.y / 100) * dw });
   const unit = dw / 100;
   const TWEEN = 800, HOLD = 900, LEAD = 900, TAIL = 1500;
@@ -637,7 +747,7 @@ export function drawStickFrame(ctx, x, y, w, h, img, beta, step, label, build) {
   ctx.drawImage(img, sx, sy, cw, ch, x, y, w, h);
   ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.fillRect(x, y, w, h);
   const pos = positionsAt(moves, step);
-  const P0 = poseAt(moves, step, asp, stickScale(moves, asp, bd), bd);
+  const P0 = poseAt(moves, step, asp, stickScale(moves, asp, bd), bd, beta.poses);
   if (P0) {
     const P = P0;
     paintPose(ctx, P, F, unit);
