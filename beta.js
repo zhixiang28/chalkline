@@ -726,6 +726,36 @@ export function videoSupported() {
   return typeof MediaRecorder !== "undefined" && typeof HTMLCanvasElement !== "undefined" && !!HTMLCanvasElement.prototype.captureStream;
 }
 // records the stickman beta as a vertical video (720x1280). Resolves { blob, ext }.
+// Frame-by-frame encoding (WebCodecs + mp4 muxer): exact length, real .mp4, and it doesn't depend on the screen staying awake.
+async function encodeWithWebCodecs(canvas, frame, total, W, H, onProgress) {
+  if (typeof VideoEncoder === "undefined" || typeof VideoFrame === "undefined") return null;
+  const { Muxer, ArrayBufferTarget } = await import("./mp4-muxer.js");
+  const tries = [["avc", "avc1.640028"], ["avc", "avc1.4d0028"], ["avc", "avc1.42002a"], ["avc", "avc1.42001f"], ["vp9", "vp09.00.10.08"]];
+  let pick = null;
+  for (const [codec, str] of tries) {
+    try { const s = await VideoEncoder.isConfigSupported({ codec: str, width: W, height: H, bitrate: 4e6, framerate: 30 }); if (s && s.supported) { pick = { codec, str }; break; } } catch {}
+  }
+  if (!pick) return null;
+  const target = new ArrayBufferTarget();
+  const muxer = new Muxer({ target, video: { codec: pick.codec, width: W, height: H }, fastStart: "in-memory" });
+  let err = null;
+  const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { err = e; } });
+  enc.configure({ codec: pick.str, width: W, height: H, bitrate: 4e6, framerate: 30 });
+  const fps = 30, frames = Math.ceil((total / 1000) * fps);
+  for (let i = 0; i <= frames; i++) {
+    if (err) throw err;
+    frame(Math.min(total, (i * 1000) / fps));
+    const vf = new VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
+    enc.encode(vf, { keyFrame: i % 30 === 0 });
+    vf.close();
+    if (enc.encodeQueueSize > 6 || i % 8 === 0) { if (onProgress) onProgress(Math.min(1, i / frames)); await new Promise((r) => setTimeout(r, 0)); }
+  }
+  await enc.flush();
+  if (err) throw err;
+  muxer.finalize();
+  return { blob: new Blob([target.buffer], { type: "video/mp4" }), ext: "mp4", type: "video/mp4" };
+}
+
 export async function recordBetaVideo({ photo, beta, title, subtitle, build, onProgress }) {
   const moves = (beta && beta.moves) || [];
   const groups = groupMoves(moves), n = groups.length;
@@ -768,6 +798,7 @@ export async function recordBetaVideo({ photo, beta, title, subtitle, build, onP
     ctx.fillStyle = "#6F6C60"; ctx.font = "700 22px sans-serif"; ctx.textAlign = "right"; ctx.fillText("CHALKLINE", W - ax, 1240);
     for (let i = 0; i < n; i++) { ctx.fillStyle = i < step ? "#FF6B35" : "#3A3B33"; ctx.fillRect(ax + i * (aw / n), 1250, aw / n - 4, 6); }
   };
+  try { const r = await encodeWithWebCodecs(canvas, frame, total, W, H, onProgress); if (r) return r; } catch (e) { console.warn("WebCodecs video failed, using the recorder", e); }
   const types = ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
   const mime = types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
   const stream = canvas.captureStream(30);

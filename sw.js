@@ -1,6 +1,6 @@
 // Chalkline service worker: makes the app installable and lets the shell load offline.
-const CACHE = "chalkline-v18";
-const SHELL = ["./", "./index.html", "./chalkline.bundle.js", "./offline-store.js", "./beta.js", "./holds.js", "./stickman.js", "./technique.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
+const CACHE = "chalkline-v19";
+const SHELL = ["./", "./index.html", "./chalkline.bundle.js", "./offline-store.js", "./beta.js", "./mp4-muxer.js", "./holds.js", "./stickman.js", "./technique.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
