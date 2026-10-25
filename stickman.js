@@ -4,7 +4,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
 
 // two-bone IK: returns the middle joint (elbow / knee) for a limb from `root` to `target`
-function twoBone(root, target, l1, l2, side, outward) {
+function twoBone(root, target, l1, l2, side, outward, hint) {
   const d = Math.max(1e-6, dist(root, target));
   if (d >= l1 + l2 - 1e-6) return lerp(root, target, l1 / (l1 + l2));
   const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
@@ -13,6 +13,7 @@ function twoBone(root, target, l1, l2, side, outward) {
   const px = root.x + ux * a, py = root.y + uy * a;
   const c1 = { x: px - uy * hh, y: py + ux * hh }, c2 = { x: px + uy * hh, y: py - ux * hh };
   // bend away from the body's centre line, and prefer elbows/knees that point outward-down
+  if (hint) return dist(c1, hint) <= dist(c2, hint) ? c1 : c2; // the user dragged the joint: bend towards it
   const score = (c) => Math.abs(c.x - outward) * 1.0 + (side < 0 ? -c.x : c.x) * 0.2 + c.y * 0.05;
   return score(c1) >= score(c2) ? c1 : c2;
 }
@@ -78,8 +79,8 @@ export function solvePose(targets, u, opts = {}) {
   return {
     head: { x: r.neck.x, y: r.neck.y - 0.42 * u }, headR: B.head * u, neck: r.neck, hip: C, over,
     LS: r.LS, RS: r.RS, LP: r.LP, RP: r.RP,
-    LE: (o.elbows && o.elbows.L) || twoBone(r.LS, LHt, B.upperArm * u, B.foreArm * u, -1, cx), RE: (o.elbows && o.elbows.R) || twoBone(r.RS, RHt, B.upperArm * u, B.foreArm * u, 1, cx),
-    LK: (o.knees && o.knees.L) || twoBone(r.LP, LFt, B.thigh * u, B.shin * u, -1, cx), RK: (o.knees && o.knees.R) || twoBone(r.RP, RFt, B.thigh * u, B.shin * u, 1, cx),
+    LE: twoBone(r.LS, LHt, B.upperArm * u, B.foreArm * u, -1, cx, o.elbows && o.elbows.L), RE: twoBone(r.RS, RHt, B.upperArm * u, B.foreArm * u, 1, cx, o.elbows && o.elbows.R),
+    LK: twoBone(r.LP, LFt, B.thigh * u, B.shin * u, -1, cx, o.knees && o.knees.L), RK: twoBone(r.RP, RFt, B.thigh * u, B.shin * u, 1, cx, o.knees && o.knees.R),
     LH: LHt, RH: RHt, LF: LFt, RF: RFt, free: { LH: !targets.LH, RH: !targets.RH, LF: !targets.LF, RF: !targets.RF },
   };
 }

@@ -102,12 +102,21 @@ export function stickScale(moves, asp, build) {
   }
   return u;
 }
-export function poseAt(moves, step, asp, u, build) {
+export function poseAt(moves, step, asp, u, build, poses) {
   const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || {}) };
   const pos = positionsAt(moves, step), t = {};
   Object.keys(pos).forEach((k) => { t[k] = { x: pos[k].x, y: pos[k].y * asp }; });
   if (!Object.keys(t).length) return null;
-  return solvePose(t, u, { armK: bd.arm, legK: bd.leg, torsoK: bd.torso, freeDir: freeAt(moves, step) });
+  const opts = { armK: bd.arm, legK: bd.leg, torsoK: bd.torso, freeDir: freeAt(moves, step) };
+  // hand-adjusted body for this step: core position and which way the elbows / knees bend
+  const g = groupMoves(moves)[step - 1], ov = poses && g && poses[g[0].id];
+  if (ov) {
+    const cv = (p) => (p ? { x: p.x, y: p.y * asp } : void 0);
+    if (ov.hip) opts.hip = cv(ov.hip);
+    if (ov.elbows) opts.elbows = { L: cv(ov.elbows.L), R: cv(ov.elbows.R) };
+    if (ov.knees) opts.knees = { L: cv(ov.knees.L), R: cv(ov.knees.R) };
+  }
+  return solvePose(t, u, opts);
 }
 export function lerpPose(A, B, e) {
   if (!A) return B;
@@ -146,6 +155,28 @@ export function BetaLegend() {
 }
 
 // ---------- stickman overlay ----------
+// eases the stick figure from its last pose to the target one (joint to joint, so limbs never stretch on the way)
+function usePoseTween(target, on, speed, instant) {
+  const [pose, setPose] = useState(null);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!on) return undefined;
+    const from = ref.current;
+    if (instant || !from || !target) { ref.current = target; setPose(target); return undefined; }
+    let raf = 0, t0 = 0;
+    const tick = (ts) => {
+      if (!t0) t0 = ts;
+      const t = Math.min(1, (ts - t0) / (700 / (speed || 1))), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const next = lerpPose(from, target, e);
+      ref.current = next; setPose(next);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, on, speed, instant]);
+  return [pose, () => { ref.current = null; setPose(null); }];
+}
+
 function Stickman({ pose, asp }) {
   const P = pose;
   if (!P) return null;
@@ -183,7 +214,7 @@ export function BetaPlayer({ photo, beta, onShare, title, subtitle }) {
   useEffect(() => {
     if (sigRef.current === sig) return;
     sigRef.current = sig;
-    setPlaying(false); setStep(groupMoves(moves).length); poseRef.current = null; setPose(null); setVid(null);
+    setPlaying(false); setStep(groupMoves(moves).length); resetPose(); setVid(null);
   }, [sig]);
   const [playing, setPlaying] = useState(false);
   const [stick, setStick] = useState(false);
@@ -219,24 +250,8 @@ export function BetaPlayer({ photo, beta, onShare, title, subtitle }) {
   const offs = useMemo(() => spreadOffsets(Object.keys(pos).map((k) => ({ key: k, x: pos[k].x, y: pos[k].y })), asp), [pos, asp]);
   // smooth movement of the stickman between steps (joint to joint, so limbs never stretch on the way)
   const u = useMemo(() => stickScale(moves, asp, build), [moves, asp, build]);
-  const target = useMemo(() => poseAt(moves, step, asp, u, build), [moves, step, asp, u, build]);
-  const [pose, setPose] = useState(null);
-  const poseRef = useRef(null);
-  useEffect(() => {
-    if (!stick) return undefined;
-    const from = poseRef.current;
-    if (!from || !target) { poseRef.current = target; setPose(target); return undefined; }
-    let raf = 0, t0 = 0;
-    const tick = (ts) => {
-      if (!t0) t0 = ts;
-      const t = Math.min(1, (ts - t0) / (700 / speed)), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const next = lerpPose(from, target, e);
-      poseRef.current = next; setPose(next);
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, stick, speed]);
+  const target = useMemo(() => poseAt(moves, step, asp, u, build, beta && beta.poses), [moves, step, asp, u, build, beta]);
+  const [pose, resetPose] = usePoseTween(target, stick, speed);
   const toggle = () => {
     if (!playing && step >= n) setStep(0);
     setPlaying((p) => !p);
@@ -304,6 +319,11 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   const [tog, setTog] = useState(false);
   const [surf, setSurf] = useState("hold");
   const [techOpen, setTechOpen] = useState(false);
+  const [stickOn, setStickOn] = useState(false);
+  const [poses, setPoses] = useState(() => ({ ...((beta && beta.poses) || {}) }));
+  const [dragKey, setDragKey] = useState(null);
+  const [playing, setPlaying] = useState(false);
+  const [playStep, setPlayStep] = useState(1);
   const boxRef = useRef();
   const [fitW, setFitW] = useState(0);
   const [ins, setIns] = useState(null); // when set, new moves are inserted after this index instead of at the end
@@ -417,7 +437,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     place(fx * 100, fy * 100, color);
   };
 
-  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })) } : null);
+  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })), ...savedPoses() } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
   // some techniques (dyno) throw both hands / both feet at once: group this move with the previous one
   const setTech = (t) => {
@@ -427,6 +447,36 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
   };
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
+  // stickman preview: shows the pose at the selected step (or the last one) and lets you drag its joints
+  const groupsAll = useMemo(() => groupMoves(moves), [moves]);
+  const nSteps = groupsAll.length;
+  const viewStep = Math.max(1, Math.min(nSteps || 1, playing ? playStep : sel != null ? steps[sel] : nSteps));
+  const uBody = useMemo(() => (moves.length ? stickScale(moves, asp, loadBuild()) : 0), [moves, asp]);
+  const target = useMemo(() => (stickOn && moves.length ? poseAt(moves, viewStep, asp, uBody, loadBuild(), poses) : null), [stickOn, moves, viewStep, asp, uBody, poses]);
+  const [pose] = usePoseTween(target, stickOn, 1, dragKey != null);
+  useEffect(() => {
+    if (!playing) return undefined;
+    const t = setInterval(() => setPlayStep((s) => { if (s >= nSteps) { setPlaying(false); return nSteps; } return s + 1; }), 1300);
+    return () => clearInterval(t);
+  }, [playing, nSteps]);
+  const gid = groupsAll[viewStep - 1] ? groupsAll[viewStep - 1][0].id : null;
+  const clampPct = (v) => Math.max(0, Math.min(100, v));
+  const stageXY = (e) => { const r = stageRef.current.getBoundingClientRect(); return { x: clampPct(((e.clientX - r.left) / r.width) * 100), y: clampPct(((e.clientY - r.top) / r.height) * 100) }; };
+  const startDrag = (key) => (e) => { e.stopPropagation(); e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch {} setDragKey(key); };
+  const onDragMove = (key) => (e) => {
+    if (dragKey !== key || !gid) return;
+    const p = stageXY(e);
+    if (key === "hip") setPoses((ps) => ({ ...ps, [gid]: { ...ps[gid], hip: p } }));
+    else if (key === "LE" || key === "RE") setPoses((ps) => ({ ...ps, [gid]: { ...ps[gid], elbows: { ...((ps[gid] || {}).elbows || {}), [key[0]]: p } } }));
+    else if (key === "LK" || key === "RK") setPoses((ps) => ({ ...ps, [gid]: { ...ps[gid], knees: { ...((ps[gid] || {}).knees || {}), [key[0]]: p } } }));
+    else { const at = positionsAt(moves, viewStep)[key]; if (at) setMoves((ms) => ms.map((m, i) => (i === at.idx ? { ...m, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 } : m))); }
+  };
+  const endDrag = () => setDragKey(null);
+  const savedPoses = () => {
+    const ids = new Set(groupsAll.map((g) => g[0].id)), o = {};
+    Object.keys(poses).forEach((k) => { if (ids.has(k) && poses[k] && Object.keys(poses[k]).length) o[k] = poses[k]; });
+    return Object.keys(o).length ? { poses: o } : {};
+  };
   // at 1x the whole photo fits in the visible area; 2x / 3x zoom in from there
   useEffect(() => {
     const el = boxRef.current;
@@ -488,6 +538,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       h("div", { className: "cl-beta-stagebox" },
         h("div", { className: "cl-beta-tools" },
           h("div", { className: "cl-beta-zoom" }, [1, 2, 3].map((z) => h("button", { key: z, type: "button", className: zoom === z ? "active" : "", onClick: () => setZoom(z) }, z === 1 ? h(ZoomIn, { size: 14 }) : null, `${z}×`))),
+          moves.length > 0 && h("button", { type: "button", className: stickOn ? "cl-beta-stog active" : "cl-beta-stog", onClick: () => { setStickOn((v) => !v); setPlaying(false); } }, h(PersonStanding, { size: 14 }), " Stickman"),
           state === "loading" && h("span", { className: "cl-hint" }, "Finding holds…"),
           state === "ready" && h("span", { className: "cl-hint" }, h(Sparkles, { size: 12 }), ` ${analysis.holds.length} holds found`)),
         colorCounts.length > 0 && h("div", { className: "cl-beta-colors" },
@@ -502,8 +553,18 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
             h("img", { src: photo, alt: "", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
             h("canvas", { ref: canvasRef, className: "cl-beta-canvas" }),
             h(Trails, { moves, step: 9999, activeGroup: -1 }),
+            stickOn && pose && h(Stickman, { pose, asp }),
+            stickOn && pose && !playing && [["hip", pose.hip, "core"], ["LE", pose.LE, "joint"], ["RE", pose.RE, "joint"], ["LK", pose.LK, "joint"], ["RK", pose.RK, "joint"]]
+              .concat(Object.keys(positionsAt(moves, viewStep)).map((k) => [k, pose[k], "end"]))
+              .map(([key, p, kind]) => h("div", { key, className: `cl-beta-handle ${kind}${dragKey === key ? " drag" : ""}`, style: { left: `${p.x}%`, top: `${p.y / asp}%` }, onPointerDown: startDrag(key), onPointerMove: onDragMove(key), onPointerUp: endDrag, onPointerCancel: endDrag })),
             moves.map((m, i) => (m.free ? null : h(Marker, { key: m.id, m, off: offs[m.id], number: steps[i], selected: sel === i, small: zoom === 1 }))),
             ping && h("span", { key: ping.k, className: "cl-beta-ping", style: { left: `${ping.x}%`, top: `${ping.y}%` } })))),
+        stickOn && h("div", { className: "cl-beta-sstrip" },
+          h("button", { type: "button", className: "cl-beta-btn", disabled: viewStep <= 1, onClick: () => { setPlaying(false); setSel(groupsAll[viewStep - 2][0].idx); }, "aria-label": "Previous step" }, h(ChevronLeft, { size: 18 })),
+          h("button", { type: "button", className: "cl-beta-btn primary", onClick: () => { if (playing) setPlaying(false); else { setSel(null); setPlayStep(1); setPlaying(true); } }, "aria-label": playing ? "Pause" : "Play motion" }, playing ? h(Pause, { size: 18 }) : h(Play, { size: 18 })),
+          h("button", { type: "button", className: "cl-beta-btn", disabled: viewStep >= nSteps, onClick: () => { setPlaying(false); setSel(groupsAll[viewStep][0].idx); }, "aria-label": "Next step" }, h(ChevronRight, { size: 18 })),
+          h("span", { className: "cl-beta-slab" }, `Step ${viewStep}/${nSteps}`, h("small", null, "Drag \u25CF core, \u25C6 elbows & knees, \u25CB hands & feet")),
+          gid && poses[gid] && h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setPoses((ps) => { const n2 = { ...ps }; delete n2[gid]; return n2; }) }, "Reset pose")),
       h("div", { className: "cl-beta-dock" },
         stepStrip,
         h("div", { className: "cl-beta-dockbody" }, sel != null ? editPanel : addPanel),
@@ -608,7 +669,7 @@ export async function recordBetaVideo({ photo, beta, title, subtitle, build, onP
   const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || loadBuild()) };
   const u = stickScale(moves, asp, bd);
   const poses = [null];
-  for (let s = 1; s <= n; s++) poses.push(poseAt(moves, s, asp, u, bd));
+  for (let s = 1; s <= n; s++) poses.push(poseAt(moves, s, asp, u, bd, beta.poses));
   const F = (p) => ({ x: dx + (p.x / 100) * dw, y: dy + (p.y / 100) * dw });
   const unit = dw / 100;
   const TWEEN = 800, HOLD = 900, LEAD = 900, TAIL = 1500;
@@ -686,7 +747,7 @@ export function drawStickFrame(ctx, x, y, w, h, img, beta, step, label, build) {
   ctx.drawImage(img, sx, sy, cw, ch, x, y, w, h);
   ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.fillRect(x, y, w, h);
   const pos = positionsAt(moves, step);
-  const P0 = poseAt(moves, step, asp, stickScale(moves, asp, bd), bd);
+  const P0 = poseAt(moves, step, asp, stickScale(moves, asp, bd), bd, beta.poses);
   if (P0) {
     const P = P0;
     paintPose(ctx, P, F, unit);

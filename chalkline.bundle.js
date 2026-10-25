@@ -4869,6 +4869,18 @@ function ChalklineApp() {
         .cl-form-bar { position: sticky; bottom: 0; z-index: 5; background: var(--card); margin: 12px -16px -16px; padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px); border-top: 1px solid var(--line); border-radius: 0 0 14px 14px; }
         .cl-beta-field-row { padding: 14px; border-radius: 14px; }
         .cl-beta-build { padding: 14px; font-size: 14px; }
+        .cl-beta-stog { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
+        .cl-beta-stog.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+        .cl-beta-handle { position: absolute; transform: translate(-50%, -50%); z-index: 6; touch-action: none; cursor: grab; }
+        .cl-beta-handle.core { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.28); border: 2px solid #fff; box-shadow: 0 0 0 3px rgba(0,0,0,0.35); }
+        .cl-beta-handle.joint { width: 22px; height: 22px; background: #FFD23F; border: 2px solid #111; transform: translate(-50%, -50%) rotate(45deg); border-radius: 4px; }
+        .cl-beta-handle.end { width: 34px; height: 34px; border-radius: 50%; border: 2px dashed #fff; }
+        .cl-beta-handle.drag { opacity: 0.8; transform: translate(-50%, -50%) scale(1.15); }
+        .cl-beta-handle.joint.drag { transform: translate(-50%, -50%) rotate(45deg) scale(1.15); }
+        .cl-beta-sstrip { display: flex; align-items: center; gap: 8px; padding: 8px 0 0; flex: none; }
+        .cl-beta-sstrip .cl-beta-btn { width: 40px; height: 40px; }
+        .cl-beta-slab { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; display: flex; flex-direction: column; }
+        .cl-beta-slab small { font-weight: 500; font-size: 10.5px; color: var(--ink-soft); }
         .cl-beta-player .cl-beta-stage { border-radius: 16px; }
         .cl-beta-tap { position: absolute; inset: 0; width: 100%; height: 100%; background: none; border: none; padding: 0; cursor: pointer; z-index: 4; display: flex; align-items: center; justify-content: center; }
         .cl-beta-bigplay { width: 68px; height: 68px; border-radius: 50%; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px); color: #fff; display: flex; align-items: center; justify-content: center; }
