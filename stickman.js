@@ -42,24 +42,41 @@ export function solvePose(targets, u, opts = {}) {
     };
   };
   if (!opts.hip) {
-    for (let pass = 0; pass < 8; pass++) {
+    for (let pass = 0; pass < 30; pass++) {
       const r = roots(C);
       const limbs = [[targets.LH, r.LS, arm], [targets.RH, r.RS, arm], [targets.LF, r.LP, leg], [targets.RF, r.RP, leg]];
+      let dx = 0, dy = 0, n = 0;
       limbs.forEach(([t, root, len]) => {
         if (!t) return;
         const d = dist(root, t);
-        if (d > len) { const k = ((d - len) / d) * 0.7; C = { x: C.x + (t.x - root.x) * k, y: C.y + (t.y - root.y) * k }; }
+        if (d > len * 0.99) { const k = (d - len * 0.99) / d; dx += (t.x - root.x) * k; dy += (t.y - root.y) * k; n++; }
       });
+      if (!n) break;
+      C = { x: C.x + dx / n, y: C.y + dy / n };
     }
   }
   const r = roots(C);
   const cx = C.x;
-  const reach = (t, root, l1, l2, side) => (t ? t : { x: root.x + side * 0.25 * u, y: root.y + (l1 + l2) * 0.85 * u });
-  const LHt = reach(targets.LH, r.LS, B.upperArm, B.foreArm, -1), RHt = reach(targets.RH, r.RS, B.upperArm, B.foreArm, 1);
-  const LFt = reach(targets.LF, r.LP, B.thigh, B.shin, -1), RFt = reach(targets.RF, r.RP, B.thigh, B.shin, 1);
+  let over = false;
+  // limbs never stretch: a hold that is out of reach is left just short of it with the limb straight
+  const fit = (t, root, len) => {
+    const d = dist(root, t);
+    if (d <= len * 0.999) return t;
+    over = true;
+    return lerp(root, t, (len * 0.999) / d);
+  };
+  // free (off the wall) limbs hang down, or point sideways when dir is -1 / 1 (flagging)
+  const free = (root, len, side, dir) => {
+    const v = dir ? { x: dir * 0.9, y: 0.45 } : { x: side * 0.22, y: 0.97 };
+    const m = Math.hypot(v.x, v.y);
+    return { x: root.x + (v.x / m) * len * 0.96, y: root.y + (v.y / m) * len * 0.96 };
+  };
+  const fr = opts.freeDir || {};
+  const LHt = targets.LH ? fit(targets.LH, r.LS, arm) : free(r.LS, arm, -1, fr.LH), RHt = targets.RH ? fit(targets.RH, r.RS, arm) : free(r.RS, arm, 1, fr.RH);
+  const LFt = targets.LF ? fit(targets.LF, r.LP, leg) : free(r.LP, leg, -1, fr.LF), RFt = targets.RF ? fit(targets.RF, r.RP, leg) : free(r.RP, leg, 1, fr.RF);
   const o = opts;
   return {
-    head: { x: r.neck.x, y: r.neck.y - 0.42 * u }, headR: B.head * u, neck: r.neck, hip: C,
+    head: { x: r.neck.x, y: r.neck.y - 0.42 * u }, headR: B.head * u, neck: r.neck, hip: C, over,
     LS: r.LS, RS: r.RS, LP: r.LP, RP: r.RP,
     LE: (o.elbows && o.elbows.L) || twoBone(r.LS, LHt, B.upperArm * u, B.foreArm * u, -1, cx), RE: (o.elbows && o.elbows.R) || twoBone(r.RS, RHt, B.upperArm * u, B.foreArm * u, 1, cx),
     LK: (o.knees && o.knees.L) || twoBone(r.LP, LFt, B.thigh * u, B.shin * u, -1, cx), RK: (o.knees && o.knees.R) || twoBone(r.RP, RFt, B.thigh * u, B.shin * u, 1, cx),
