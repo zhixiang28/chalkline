@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronDown,
   Link2,
+  Undo2,
   Heart,
   Trash2,
   Search,
@@ -911,77 +912,100 @@ function QuickEditSheet({ item, onClose, onSave, onDelete, onOpenLog }) {
     h("div", { className: "cl-ql-actions" }, h(ConfirmButton, { onConfirm: () => onDelete(item.log.id, item.update.id), icon: h(Trash2, { size: 14 }), label: "Delete", confirmLabel: "Really delete?" }), h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: save }, "Save")),
     h("button", { type: "button", className: "cl-ql-link", onClick: () => onOpenLog(item.log) }, "Add photo, beta or notes ›")));
 }
-function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry, onLogged, onUndo, onEditItem, onFull, onPost }) {
+function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry, onLogged, onUndo, onEditItem, onPatch, onFull, onPost }) {
   const h = React.createElement;
   const read = (k, d) => { try { return localStorage.getItem("chalkline_ql_" + k) || d; } catch { return d; } };
+  const [page, setPage] = useState("grade");
   const [type, setType] = useState(read("type", "boulder"));
   const [grade, setGrade] = useState(read("grade", "V2"));
   const [attempts, setAttempts] = useState(1);
-  const [name, setName] = useState("");
-  const [showName, setShowName] = useState(false);
-  const [photo, setPhoto] = useState(null);
   const [gym, setGym] = useState(session ? session.gym : read("gym", gymDefault || GYM_OPTIONS[0]));
   const [editGym, setEditGym] = useState(false);
   const [project, setProject] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [done, setDone] = useState(null);
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const toastTimer = useRef(null);
+  const [failed, setFailed] = useState(false);
   const today = new Date().toDateString();
   const mine = logs.filter((l) => l.authorSlug === me && l.kind === "climb");
-  const recent = mine.filter((l) => l.postType === "project" && Date.now() - (l.updatedAt || l.createdAt || 0) < 60 * 864e5).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 8);
+  const recent = mine.filter((l) => l.postType === "project" && Date.now() - (l.updatedAt || l.createdAt || 0) < 60 * 864e5).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 12);
   const todays = mine.flatMap((l) => (l.updates || []).filter((u) => u.climbs && u.climbs[0] && new Date(u.timestamp).toDateString() === today).map((u) => ({ log: l, update: u }))).sort((a, b) => b.update.timestamp - a.update.timestamp);
   const gl = (c) => c.type === "boulder" ? boulderLabel(c.grade) : usGrade(c.grade);
+  const options = gradeOptionsFor(type);
+  const pickGrade = (g) => { setGrade(g); setProject(null); setAttempts(1); setPage("result"); };
   const pickProject = (l) => {
-    if (project && project.id === l.id) { setProject(null); return; }
     const last = (l.updates || [])[l.updates.length - 1];
     const c = last && last.climbs && last.climbs[0];
     setProject(l);
     if (c) { setType(c.type); setGrade(c.grade); }
     setGym(l.gym || gym);
+    setAttempts(1);
+    setPage("result");
   };
-  const changeType = (t) => { setType(t); const opts = gradeOptionsFor(t); if (opts && !opts.includes(grade)) setGrade(opts[Math.min(2, opts.length - 1)]); };
   const save = async (result) => {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setFailed(false);
     const climb = { type, grade, status: result === "trying" ? "trying" : "sent", attempts: result === "flash" ? 1 : attempts };
     if (result === "flash") climb.style = "flash";
     const minutes = session && session.lastAt ? Math.max(0, Math.round((Date.now() - session.lastAt) / 6e4)) : 0;
     try {
-      const ref = project ? await onAddTry(project.id, { note: "", minutes, climbs: [climb], photo, extra: {} }) : await onLog({ postType: "project", title: name.trim(), gym, privacy: "public", climbs: [climb], note: "", photo, minutes, extra: void 0 });
+      const ref = project ? await onAddTry(project.id, { note: "", minutes, climbs: [climb], extra: {} }) : await onLog({ postType: "project", title: name.trim(), gym, privacy: "public", climbs: [climb], note: "", photo: null, minutes, extra: void 0 });
       try { localStorage.setItem("chalkline_ql_type", type); localStorage.setItem("chalkline_ql_grade", grade); localStorage.setItem("chalkline_ql_gym", gym); } catch {}
       const delta = { attempts: climb.attempts, sent: climb.status === "sent" ? 1 : 0, gym };
       onLogged(delta);
-      clearTimeout(toastTimer.current);
-      setToast({ msg: `${gl(climb)} · ${result === "flash" ? "flash" : result === "sent" ? `sent in ${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"}` : `${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"}`}`, ref, delta });
-      toastTimer.current = setTimeout(() => setToast(null), 6000);
-      setName(""); setShowName(false); setPhoto(null); setProject(null); setAttempts(1);
-    } catch {
-      setToast({ msg: "Couldn't save — try again" });
-    }
+      setDone({ msg: `${gl(climb)} · ${result === "flash" ? "flashed" : result === "sent" ? `sent in ${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"}` : `${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"} so far`}`, result, ref, delta, photo: null, linked: !!project });
+      setPage("done");
+    } catch { setFailed(true); }
     setBusy(false);
   };
-  const undo = async () => {
-    const t = toast;
-    setToast(null);
-    if (t && t.ref) { await onUndo(t.ref, t.delta); }
-  };
-  const pickPhoto = async (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setPhoto(await resizeImage(f, 1200, 0.85)); e.target.value = ""; };
-  const tries = h("div", { className: "cl-ql-row" }, h("span", null, "Tries so far"), h("div", { className: "cl-stepper" }, h("button", { type: "button", onClick: () => setAttempts(Math.max(1, attempts - 1)), "aria-label": "Fewer tries" }, "−"), h("b", null, attempts), h("button", { type: "button", onClick: () => setAttempts(attempts + 1), "aria-label": "More tries" }, "+")));
-  return h("div", { className: "cl-sheet-backdrop", onClick: onClose }, h("div", { className: "cl-sheet cl-ql-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" },
-    h("div", { className: "cl-sheet-handle" }),
-    h("div", { className: "cl-ql-head" }, h("div", null, h("b", null, "Log a climb"), editGym ? h("input", { className: "cl-input cl-ql-gyminput", value: gym, list: "cl-gyms-ql", autoFocus: true, onChange: (e) => setGym(e.target.value), onBlur: () => setEditGym(false) }) : h("button", { type: "button", className: "cl-ql-gym", onClick: () => setEditGym(true) }, h(MapPin, { size: 12 }), " ", gym, " ✎"), h("datalist", { id: "cl-gyms-ql" }, GYM_OPTIONS.map((g) => h("option", { key: g, value: g })))), h("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, h(X, { size: 18 }))),
-    todays.length > 0 && h("div", { className: "cl-ql-today" }, h("p", { className: "cl-ql-cap" }, "Today · tap to fix"), h("div", { className: "cl-ql-recent" }, todays.slice(0, 14).map((it) => { const c = it.update.climbs[0]; return h("button", { key: it.update.id, type: "button", className: "cl-ql-chip", style: { borderColor: gradeColor(c.type, c.grade) }, onClick: () => onEditItem(it) }, gl(c), c.status === "sent" ? (c.style === "flash" ? " ⚡" : " ✓") : ` · ${c.attempts || 1}x`); }))),
-    recent.length > 0 && h(React.Fragment, null, h("p", { className: "cl-ql-cap" }, "Same wall as before? Tap it"), h("div", { className: "cl-ql-recent" }, recent.map((l) => h("button", { key: l.id, type: "button", className: project && project.id === l.id ? "cl-ql-proj active" : "cl-ql-proj", onClick: () => pickProject(l) }, l.title, " · ", new Date(l.updatedAt || l.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric" }))))),
-    h(TypeSelector, { value: type, onChange: changeType }),
-    h(GradeSelector, { type, grade, onChange: setGrade }),
-    tries,
-    h("div", { className: "cl-ql-result big" }, [["flash", "Flash", "first try"], ["sent", "Sent", "got it"], ["trying", "Not yet", "log tries"]].map(([v, l, sub]) => h("button", { key: v, type: "button", className: `cl-ql-res ${v}`, disabled: busy, onClick: () => save(v) }, h("b", null, l), h("small", null, sub)))),
-    h("div", { className: "cl-ql-extras" },
-      h("input", { type: "file", accept: "image/*", id: "cl-ql-photo", className: "cl-file-hidden", onChange: pickPhoto }),
-      photo ? h("span", { className: "cl-ql-photo" }, h("img", { src: photo, alt: "" }), h("button", { type: "button", onClick: () => setPhoto(null), "aria-label": "Remove photo" }, h(X, { size: 12 }))) : h("label", { htmlFor: "cl-ql-photo", className: "cl-ql-extra" }, h(Camera, { size: 14 }), " Photo"),
-      !project && (showName ? h("input", { className: "cl-input cl-ql-name", value: name, autoFocus: true, onChange: (e) => setName(e.target.value), placeholder: "Name or colour, e.g. orange slab" }) : h("button", { type: "button", className: "cl-ql-extra", onClick: () => setShowName(true) }, "✎ Name it"))),
-    toast && h("p", { className: "cl-ql-toast" }, h(Check, { size: 14 }), " ", toast.msg, toast.ref && h("button", { type: "button", onClick: undo }, "Undo")),
-    h("div", { className: "cl-ql-more" }, h("button", { type: "button", onClick: onFull }, "Full log ›"), h("button", { type: "button", onClick: onPost }, "New post ›"), h("button", { type: "button", onClick: onClose, className: "done" }, "Done"))));
+  const undo = async () => { const d = done; if (d && d.ref) await onUndo(d.ref, d.delta); setDone(null); setName(""); setProject(null); setPage("grade"); };
+  const next = () => { setDone(null); setName(""); setProject(null); setAttempts(1); setPage("grade"); };
+  const addPhoto = async (e) => { const f = e.target.files && e.target.files[0]; if (!f || !done || !done.ref) return; const img = await resizeImage(f, 1200, 0.85); await onPatch(done.ref.logId, { photo: img }); setDone({ ...done, photo: img }); e.target.value = ""; };
+  const saveName = async () => { if (!name.trim() || !done || !done.ref) return; await onPatch(done.ref.logId, { title: name.trim() }); setDone({ ...done, named: name.trim() }); };
+  const titles = { grade: "Log a climb", wall: "Same wall as before", result: "How did it go?", done: "Logged", today: "Today" };
+  const back = page === "wall" || page === "today" ? "grade" : page === "result" ? "grade" : null;
+  const head = h("div", { className: "cl-qp-head" },
+    back ? h("button", { type: "button", className: "cl-icon-btn", onClick: () => setPage(back), "aria-label": "Back" }, h(ArrowLeft, { size: 20 })) : h("span", { style: { width: 32 } }),
+    h("b", null, titles[page]),
+    h("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, h(X, { size: 18 })));
+  const chip = h("button", { type: "button", className: "cl-qp-chip", onClick: () => setPage("grade") }, h("b", { style: { background: gradeColor(type, grade) } }, gl({ type, grade })), project ? project.title : TYPE_LABELS[type], " · ", gym);
+  let body;
+  if (page === "grade") {
+    body = h(React.Fragment, null,
+      editGym ? h("input", { className: "cl-input cl-ql-gyminput", value: gym, list: "cl-gyms-ql", autoFocus: true, onChange: (e) => setGym(e.target.value), onBlur: () => setEditGym(false) }) : h("button", { type: "button", className: "cl-ql-gym", onClick: () => setEditGym(true) }, h(MapPin, { size: 12 }), " ", gym, " ✎"),
+      h("datalist", { id: "cl-gyms-ql" }, GYM_OPTIONS.map((g) => h("option", { key: g, value: g }))),
+      h("div", { className: "cl-qp-types" }, TYPES.map((t) => h("button", { key: t, type: "button", className: type === t ? "active" : "", onClick: () => { setType(t); const o = gradeOptionsFor(t); if (o && !o.includes(grade)) setGrade(o[Math.min(2, o.length - 1)]); } }, TYPE_LABELS[t]))),
+      h("p", { className: "cl-ql-cap" }, "Grade — tap to continue"),
+      options ? h("div", { className: "cl-qp-grades" }, options.map((g) => h("button", { key: g, type: "button", className: grade === g ? "active" : "", style: { borderColor: gradeColor(type, g), background: grade === g ? gradeColor(type, g) : void 0 }, onClick: () => pickGrade(g) }, type === "boulder" ? boulderLabel(g) : usGrade(g))))
+        : h("div", { className: "cl-qp-other" }, h("input", { className: "cl-input", value: grade, onChange: (e) => setGrade(e.target.value), placeholder: "Describe it (optional)" }), h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: () => pickGrade(grade) }, "Next")),
+      h("div", { className: "cl-qp-links" },
+        recent.length > 0 && h("button", { type: "button", onClick: () => setPage("wall") }, h(Link2, { size: 16 }), " Same wall as before ", h("em", null, "›")),
+        todays.length > 0 && h("button", { type: "button", onClick: () => setPage("today") }, h(Check, { size: 16 }), " Today · ", todays.length, " logged — fix ", h("em", null, "›")),
+        h("button", { type: "button", onClick: onFull }, h(Layers, { size: 16 }), " Full log — photo, beta, notes ", h("em", null, "›")),
+        h("button", { type: "button", onClick: onPost }, h(Camera, { size: 16 }), " New post ", h("em", null, "›"))));
+  } else if (page === "wall") {
+    body = h("div", { className: "cl-qp-list" }, recent.map((l) => { const c = ((l.updates || [])[l.updates.length - 1] || {}).climbs; const c0 = c && c[0]; return h("button", { key: l.id, type: "button", onClick: () => pickProject(l) }, l.photo ? h("img", { src: l.photo, alt: "" }) : h("span", { className: "cl-qp-badge", style: c0 ? { background: gradeColor(c0.type, c0.grade) } : void 0 }, c0 ? gl(c0) : "—"), h("span", { className: "cl-qp-lt" }, h("b", null, l.title), h("small", null, l.gym, " · ", new Date(l.updatedAt || l.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric" }))), h("em", null, "›")); }));
+  } else if (page === "today") {
+    body = h("div", { className: "cl-qp-list" }, todays.map((it) => { const c = it.update.climbs[0]; return h("button", { key: it.update.id, type: "button", onClick: () => onEditItem(it) }, h("span", { className: "cl-qp-badge", style: { background: gradeColor(c.type, c.grade) } }, gl(c)), h("span", { className: "cl-qp-lt" }, h("b", null, it.log.title), h("small", null, new Date(it.update.timestamp).toLocaleTimeString(void 0, { hour: "numeric", minute: "2-digit" }), " · ", c.status === "sent" ? (c.style === "flash" ? "flash" : `sent in ${c.attempts || 1}`) : `${c.attempts || 1} tries, not yet`)), h("em", null, "Edit ›")); }));
+  } else if (page === "result") {
+    body = h(React.Fragment, null, chip,
+      h("div", { className: "cl-qp-tries" }, h("span", null, "Tries so far"), h("button", { type: "button", onClick: () => setAttempts(Math.max(1, attempts - 1)), "aria-label": "Fewer tries" }, "−"), h("b", null, attempts), h("button", { type: "button", onClick: () => setAttempts(attempts + 1), "aria-label": "More tries" }, "+")),
+      h("div", { className: "cl-qp-results" }, [["flash", "Flash", "first try"], ["sent", "Sent", "topped it"], ["trying", "Not yet", "still working on it"]].map(([v, l, sub]) => h("button", { key: v, type: "button", className: `cl-qp-res ${v}`, disabled: busy, onClick: () => save(v) }, h("b", null, l), h("small", null, sub)))),
+      failed && h("p", { className: "cl-hint", style: { color: "var(--danger, #e5484d)", textAlign: "center" } }, "Couldn't save — try again"),
+      !project && h("input", { className: "cl-input", value: name, onChange: (e) => setName(e.target.value), placeholder: "Name or colour (optional) — e.g. orange slab" }));
+  } else {
+    body = h(React.Fragment, null,
+      h("div", { className: "cl-qp-done" }, h("span", null, h(Check, { size: 34 })), h("b", null, done ? done.msg : ""), session && h("small", null, "Session · ", session.n + 0, " problems · ", session.sent, " sent")),
+      h("button", { type: "button", className: "cl-btn-primary cl-qp-next", onClick: next }, "Log next climb"),
+      h("div", { className: "cl-qp-after" },
+        h("input", { type: "file", accept: "image/*", id: "cl-qp-photo", className: "cl-file-hidden", onChange: addPhoto }),
+        done && done.photo ? h("span", { className: "cl-qp-photook" }, h("img", { src: done.photo, alt: "" }), " Photo added — build the beta from the log") : h("label", { htmlFor: "cl-qp-photo", className: "cl-qp-act" }, h(Camera, { size: 18 }), " Add a wall photo"),
+        done && !done.linked && !done.named && h("div", { className: "cl-qp-namerow" }, h("input", { className: "cl-input", value: name, onChange: (e) => setName(e.target.value), placeholder: "Name it, e.g. orange slab" }), h("button", { type: "button", className: "cl-btn-ghost", onClick: saveName, disabled: !name.trim() }, "Save")),
+        done && done.named && h("p", { className: "cl-hint" }, "Named “", done.named, "”"),
+        h("button", { type: "button", className: "cl-qp-act", onClick: undo }, h(Undo2, { size: 18 }), " Undo this log"),
+        h("button", { type: "button", className: "cl-qp-act muted", onClick: onClose }, "Done for now")));
+  }
+  return h("div", { className: "cl-sheet-backdrop", onClick: onClose }, h("div", { className: "cl-sheet cl-qp-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, head, h("div", { className: "cl-qp-body" }, body)));
 }
 function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const [postType, setPostType] = useState(initial.postType || "project");
@@ -3529,6 +3553,13 @@ function ChalklineApp() {
     setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
     return { logId, updateId: update.id };
   };
+  const patchLog = async (logId, patch) => {
+    const entry = logs.find((l) => l.id === logId);
+    if (!entry) return;
+    const next = { ...entry, ...patch };
+    await safeSet(`log:${logId}`, JSON.stringify(next), true);
+    setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
+  };
   const deleteUpdate = async (logId, updateId) => {
     const entry = logs.find((l) => l.id === logId);
     if (!entry) return;
@@ -4739,6 +4770,54 @@ function ChalklineApp() {
         .cl-ql-more button { background: none; border: none; color: var(--ink-soft); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 6px 0; }
         .cl-ql-more .done { margin-left: auto; color: var(--accent2); font-size: 14px; }
         .cl-ql-link { background: none; border: none; color: var(--accent2); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; padding: 4px; }
+        .cl-qp-sheet { height: 88vh; max-height: 88vh; display: flex; flex-direction: column; padding-bottom: calc(env(safe-area-inset-bottom) + 14px); }
+        .cl-qp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0 10px; }
+        .cl-qp-head b { font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.08em; font-size: 20px; }
+        .cl-qp-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+        .cl-qp-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .cl-qp-types button { padding: 14px 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; }
+        .cl-qp-types button.active { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 16%, transparent); }
+        .cl-qp-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .cl-qp-grades button { min-height: 62px; border-radius: 14px; border: 2px solid var(--line); background: transparent; color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; }
+        .cl-qp-grades button.active { color: #fff; }
+        .cl-qp-grades button:active { transform: scale(0.96); }
+        .cl-qp-other { display: flex; flex-direction: column; gap: 10px; }
+        .cl-qp-links { margin-top: auto; display: flex; flex-direction: column; }
+        .cl-qp-links button { display: flex; align-items: center; gap: 10px; padding: 14px 4px; background: none; border: none; border-top: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; }
+        .cl-qp-links button svg { color: var(--accent2); }
+        .cl-qp-links em, .cl-qp-list em { margin-left: auto; font-style: normal; color: var(--ink-soft); }
+        .cl-qp-chip { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); font-size: 14px; cursor: pointer; text-align: left; }
+        .cl-qp-chip b { color: #fff; border-radius: 8px; padding: 4px 9px; font-size: 15px; }
+        .cl-qp-tries { display: flex; align-items: center; gap: 14px; justify-content: center; font-size: 15px; font-weight: 600; }
+        .cl-qp-tries span { margin-right: auto; }
+        .cl-qp-tries button { width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 26px; cursor: pointer; }
+        .cl-qp-tries b { min-width: 40px; text-align: center; font-size: 28px; }
+        .cl-qp-results { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 240px; }
+        .cl-qp-res { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 18px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+        .cl-qp-res b { font-size: 26px; font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; }
+        .cl-qp-res small { font-size: 12.5px; color: var(--ink-soft); }
+        .cl-qp-res.flash { border-color: #F3BE55; background: rgba(243,190,85,0.12); }
+        .cl-qp-res.sent { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+        .cl-qp-res:active { transform: scale(0.98); }
+        .cl-qp-list { display: flex; flex-direction: column; }
+        .cl-qp-list button { display: flex; align-items: center; gap: 12px; padding: 12px 4px; background: none; border: none; border-top: 1px solid var(--line); color: var(--ink); cursor: pointer; text-align: left; }
+        .cl-qp-list img, .cl-qp-badge { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; background: var(--line); }
+        .cl-qp-lt { display: flex; flex-direction: column; min-width: 0; }
+        .cl-qp-lt b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cl-qp-lt small { font-size: 12px; color: var(--ink-soft); }
+        .cl-qp-done { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 0 8px; text-align: center; }
+        .cl-qp-done span { width: 72px; height: 72px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+        .cl-qp-done b { font-size: 22px; }
+        .cl-qp-done small { color: var(--ink-soft); }
+        .cl-qp-next { margin-top: 0; padding: 18px; font-size: 17px; }
+        .cl-qp-after { display: flex; flex-direction: column; gap: 6px; margin-top: auto; }
+        .cl-qp-act { display: flex; align-items: center; gap: 10px; padding: 15px 4px; background: none; border: none; border-top: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; }
+        .cl-qp-act svg { color: var(--accent2); }
+        .cl-qp-act.muted { color: var(--ink-soft); justify-content: center; }
+        .cl-qp-namerow { display: flex; gap: 8px; align-items: center; padding: 8px 0; }
+        .cl-qp-namerow .cl-btn-ghost { width: auto; padding: 10px 16px; }
+        .cl-qp-photook { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); padding: 8px 0; }
+        .cl-qp-photook img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
         .cl-add-option.primary b { color: var(--accent2); }
         .cl-session-bar { position: fixed; left: 8px; right: 8px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 49; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent2) 55%, var(--line)); box-shadow: 0 8px 22px rgba(0,0,0,0.35); max-width: 664px; margin: 0 auto; }
         .cl-session-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); animation: cl-blink 1.4s ease-in-out infinite; flex-shrink: 0; }
@@ -4852,7 +4931,7 @@ function ChalklineApp() {
       commentsMap,
       addComment
     }
-  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), session && React.createElement("div", { className: "cl-session-bar" }, React.createElement("span", { className: "cl-session-dot" }), React.createElement("b", null, fmtClock(Date.now() - session.start)), React.createElement("span", { className: "cl-session-meta" }, session.n, session.n === 1 ? " problem" : " problems", " \u00B7 ", session.attempts, " tries \u00B7 ", session.sent, " sent"), React.createElement("button", { type: "button", onClick: () => setShowQuick(true) }, "Log"), React.createElement("button", { type: "button", className: "end", onClick: endSession }, "End")), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowQuick(true), title: "Log a climb", "aria-label": "Log a climb" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showQuick && React.createElement(QuickLogSheet, { me, logs, session, gymDefault: profiles[me] && profiles[me].mainGym, onClose: () => setShowQuick(false), onLog: createClimbPost, onAddTry: addTry, onLogged: quickLogged, onUndo: undoQuick, onEditItem: setQuickEdit, onFull: () => { setShowQuick(false); setShowNewPost(true); }, onPost: () => { setShowQuick(false); setShowSocialPost({}); } }), quickEdit && React.createElement(QuickEditSheet, { item: quickEdit, onClose: () => setQuickEdit(null), onSave: async (lid, uid2, climb) => { await editClimbQuick(lid, uid2, climb); setQuickEdit(null); }, onDelete: async (lid, uid2) => { const gone = (logs.find((l) => l.id === lid) || { updates: [] }).updates.length <= 1; await deleteUpdate(lid, uid2); setQuickEdit(null); if (gone && viewingLogDetail && viewingLogDetail.id === lid) setViewingLogDetail(null); }, onOpenLog: (l) => { setQuickEdit(null); setShowQuick(false); setViewingLogDetail(l); } }), sessionSummary && React.createElement(BottomSheet, { title: "Session done", message: `${Math.max(1, Math.round((sessionSummary.end - sessionSummary.start) / 6e4))} min at ${sessionSummary.gym} \u00B7 ${sessionSummary.n} problems \u00B7 ${sessionSummary.attempts} tries \u00B7 ${sessionSummary.sent} sent. Open any log to add photos, beta or notes.`, confirmLabel: "Nice", onCancel: () => setSessionSummary(null), onConfirm: () => setSessionSummary(null) }), viewingProfile && /* @__PURE__ */ React.createElement(
+  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), session && React.createElement("div", { className: "cl-session-bar" }, React.createElement("span", { className: "cl-session-dot" }), React.createElement("b", null, fmtClock(Date.now() - session.start)), React.createElement("span", { className: "cl-session-meta" }, session.n, session.n === 1 ? " problem" : " problems", " \u00B7 ", session.attempts, " tries \u00B7 ", session.sent, " sent"), React.createElement("button", { type: "button", onClick: () => setShowQuick(true) }, "Log"), React.createElement("button", { type: "button", className: "end", onClick: endSession }, "End")), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowQuick(true), title: "Log a climb", "aria-label": "Log a climb" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showQuick && React.createElement(QuickLogSheet, { me, logs, session, gymDefault: profiles[me] && profiles[me].mainGym, onClose: () => setShowQuick(false), onLog: createClimbPost, onAddTry: addTry, onLogged: quickLogged, onUndo: undoQuick, onEditItem: setQuickEdit, onPatch: patchLog, onFull: () => { setShowQuick(false); setShowNewPost(true); }, onPost: () => { setShowQuick(false); setShowSocialPost({}); } }), quickEdit && React.createElement(QuickEditSheet, { item: quickEdit, onClose: () => setQuickEdit(null), onSave: async (lid, uid2, climb) => { await editClimbQuick(lid, uid2, climb); setQuickEdit(null); }, onDelete: async (lid, uid2) => { const gone = (logs.find((l) => l.id === lid) || { updates: [] }).updates.length <= 1; await deleteUpdate(lid, uid2); setQuickEdit(null); if (gone && viewingLogDetail && viewingLogDetail.id === lid) setViewingLogDetail(null); }, onOpenLog: (l) => { setQuickEdit(null); setShowQuick(false); setViewingLogDetail(l); } }), sessionSummary && React.createElement(BottomSheet, { title: "Session done", message: `${Math.max(1, Math.round((sessionSummary.end - sessionSummary.start) / 6e4))} min at ${sessionSummary.gym} \u00B7 ${sessionSummary.n} problems \u00B7 ${sessionSummary.attempts} tries \u00B7 ${sessionSummary.sent} sent. Open any log to add photos, beta or notes.`, confirmLabel: "Nice", onCancel: () => setSessionSummary(null), onConfirm: () => setSessionSummary(null) }), viewingProfile && /* @__PURE__ */ React.createElement(
     ProfileView,
     {
       slug: viewingProfile,
