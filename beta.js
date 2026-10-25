@@ -320,6 +320,44 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
 }
 
 // ---------- editor ----------
+// ---------- technique suggestions (from where the limbs go) ----------
+// Guesses from the geometry only: it cannot see the holds' shape, so grip types (crimp, sloper...) are not guessed, except volumes.
+export function suggestTech(moves, step, asp, hipPose) {
+  const groups = groupMoves(moves), g = groups[step - 1];
+  if (!g || step <= 1) return null;
+  const u = stickScale(moves, asp, { size: 1 });
+  const d = (a, c) => Math.hypot(a.x - c.x, (a.y - c.y) * asp) / u;
+  const prev = positionsAt(moves, step - 1), cur = positionsAt(moves, step);
+  const real = g.filter((m) => !m.free);
+  const hands = real.filter((m) => LIMBS[m.limb].kind === "hand"), feet = real.filter((m) => LIMBS[m.limb].kind === "foot");
+  const travel = (m) => (prev[m.limb] ? d(prev[m.limb], m) : 0);
+  const maxHand = Math.max(0, ...hands.map(travel));
+  const P = hipPose || poseAt(moves, step, asp, u, { size: 1 });
+  const hipY = P ? P.hip.y / asp : null; // percent of image height
+  const freeFoot = g.find((m) => m.free && LIMBS[m.limb].kind === "foot" && m.dir);
+  if (maxHand > 1.8 || (hands.length >= 2 && hands.every((m) => travel(m) > 1.3))) return { id: "dyno", why: "big jump for the hands" };
+  if (freeFoot) return { id: "flag", why: "free foot sticking out to the side" };
+  if (hipY != null && feet.some((m) => m.surf !== "wall" && m.y < hipY - (0.15 * u) / asp)) return { id: "heel-hook", why: "a foot goes above the hips" };
+  if (feet.some((m) => m.surf === "wall")) return { id: "smear", why: "a foot on the plain wall" };
+  if (cur.LH && cur.RH && cur.LH.surf === "volume" && cur.RH.surf === "volume") return { id: "compression", why: "both hands on volumes" };
+  if (hands.some((m) => m.surf === "volume")) return { id: "sloper", why: "hand on a volume" };
+  if (hipY != null && hands.some((m) => m.y > hipY + (0.2 * u) / asp)) return { id: "mantle", why: "hand pressing below the hips" };
+  if (maxHand > 1.3 && feet.length === 0) return { id: "deadpoint", why: "long reach with the feet staying put" };
+  if (hands.length && feet.length && cur.LF && cur.RF && !cur.LF.free && !cur.RF.free && Math.abs(cur.LF.x - cur.RF.x) / u > 1.2 && Math.abs(cur.LF.y - cur.RF.y) * asp / u < 0.6) return { id: "drop-knee", why: "feet wide apart at the same height" };
+  return null;
+}
+// fills the steps that have no technique yet (and weren't cleared on purpose); returns the new moves and how many steps got one
+export function autoFillTech(moves, asp) {
+  const next = moves.map((m) => ({ ...m }));
+  let n = 0;
+  groupMoves(next).forEach((g, gi) => {
+    if (g.some((m) => (m.tech && TECH_BY_ID[m.tech]) || m.noTech)) return;
+    const s = suggestTech(next, gi + 1, asp);
+    if (s) { g.forEach((m) => { next[m.idx].tech = s.id; next[m.idx].techAuto = true; }); n++; }
+  });
+  return { moves: next, n };
+}
+
 export function BetaEditor({ photo, beta, onSave, onCancel }) {
   const [moves, setMoves] = useState(() => ((beta && beta.moves) || []).map((m) => ({ ...m })));
   const [limb, setLimb] = useState("LH");
@@ -450,17 +488,19 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     place(fx * 100, fy * 100, color);
   };
 
-  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })), ...savedPoses() } : null);
+  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: autoFillTech(moves, asp).moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together, techAuto, noTech }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(techAuto ? { techAuto: true } : {}), ...(noTech ? { noTech: true } : {}), ...(fr ? { free: true, dir: dir || 0 } : {}) })), ...savedPoses() } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
   // the technique applies to every move of the step (grouping is always the user's choice, also for a dyno)
   const setTech = (t) => setMoves((ms) => {
     const next = ms.map((x) => ({ ...x }));
     const grp = groupMoves(next).find((g) => g.some((x) => x.idx === sel));
-    grp.forEach((x) => { next[x.idx].tech = t; });
+    grp.forEach((x) => { next[x.idx].tech = t; next[x.idx].techAuto = false; next[x.idx].noTech = !t; });
     return next;
   });
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
+  const [suggestMsg, setSuggestMsg] = useState("");
+  const sugg = useMemo(() => (sel != null ? suggestTech(moves, steps[sel], asp) : null), [moves, sel, asp]);
   // stickman preview: shows the pose at the selected step (or the last one) and lets you drag its joints
   const groupsAll = useMemo(() => groupMoves(moves), [moves]);
   const nSteps = groupsAll.length;
@@ -528,7 +568,8 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       h("span", { className: "cl-beta-lab" }, "On a"),
       SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: surf === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => setSurf(k) }, label)),
       moves.length > 0 && h("button", { type: "button", className: tog ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => setTog(!tog) }, h(Link2, { size: 13 }), tog ? " Same step: ON" : " Same step")),
-    h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, `${LIMBS[limb].label} off the wall`), dirChips(null, addFree)));
+    h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, `${LIMBS[limb].label} off the wall`), dirChips(null, addFree)),
+    moves.length > 2 && h("div", { className: "cl-beta-row" }, h("button", { type: "button", className: "cl-beta-chip", onClick: () => { const r = autoFillTech(moves, asp); setMoves(r.moves); setSuggestMsg(r.n ? `Added a technique to ${r.n} step${r.n === 1 ? "" : "s"} \u2014 tap a step to change it` : "No clear technique found for the steps without one"); } }, h(Sparkles, { size: 13 }), " Suggest techniques"), suggestMsg && h("span", { className: "cl-beta-lab" }, suggestMsg)));
   const m0 = sel != null ? moves[sel] : null;
   const curStepTech = sel != null ? stepTech(groups.find((g) => g.some((x) => x.idx === sel))) : null;
   const editPanel = m0 && h("div", { className: "cl-beta-panel" },
@@ -538,6 +579,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       h("span", { className: "cl-beta-lab" }, m0.free ? "Free limb" : "On a"),
       m0.free ? dirChips(m0.dir || 0, (dir) => updateSel({ dir })) : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
       sel > 0 && h("button", { type: "button", className: m0.together ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => updateSel({ together: !m0.together }) }, h(Link2, { size: 13 }), " Same step as previous")),
+    sugg && sugg.id !== curStepTech && h("button", { type: "button", className: "cl-beta-suggest", onClick: () => setTech(sugg.id) }, h(Sparkles, { size: 14 }), h("span", null, "Suggested: ", h("b", null, TECH_BY_ID[sugg.id].name), h("small", null, " \u2014 ", sugg.why)), h("em", null, "Use")),
     h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, curStepTech ? TECH_BY_ID[curStepTech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
     techOpen && h(TechniquePicker, { value: curStepTech, onChange: (t) => { setTech(t); setTechOpen(false); } }),
     h("input", { className: "cl-input", value: m0.note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),

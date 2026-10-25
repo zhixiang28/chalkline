@@ -4882,6 +4882,11 @@ function ChalklineApp() {
         .cl-beta-slab { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; display: flex; flex-direction: column; }
         .cl-beta-slab small { font-weight: 500; font-size: 10.5px; color: var(--ink-soft); }
         .cl-beta-editbtn { position: absolute; right: 10px; bottom: 10px; z-index: 6; display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border: none; border-radius: 999px; background: rgba(0,0,0,0.62); backdrop-filter: blur(6px); color: #fff; font: 700 12.5px 'Inter', sans-serif; line-height: 1.2; cursor: pointer; }
+        .cl-beta-suggest { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; border: 1px dashed var(--accent2); border-radius: 12px; background: color-mix(in srgb, var(--accent2) 10%, transparent); color: var(--ink); text-align: left; cursor: pointer; font-size: 13px; }
+        .cl-beta-suggest svg { color: var(--accent2); flex: none; }
+        .cl-beta-suggest span { flex: 1; min-width: 0; }
+        .cl-beta-suggest small { color: var(--ink-soft); font-size: 11.5px; }
+        .cl-beta-suggest em { font-style: normal; font-weight: 800; color: var(--accent2); }
         .cl-beta-player .cl-beta-stage { border-radius: 16px; }
         .cl-beta-tap { position: absolute; inset: 0; width: 100%; height: 100%; background: none; border: none; padding: 0; cursor: pointer; z-index: 4; display: flex; align-items: center; justify-content: center; }
         .cl-beta-bigplay { width: 68px; height: 68px; border-radius: 50%; background: rgba(0,0,0,0.55); backdrop-filter: blur(6px); color: #fff; display: flex; align-items: center; justify-content: center; }
