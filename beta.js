@@ -20,7 +20,7 @@ export const hasBeta = (b) => !!(b && b.moves && b.moves.length);
 
 // moves flagged `together` happen in the same step as the previous move (e.g. matching both hands on one hold)
 // - the starting position (the first move of each limb) is one step
-// - letting a limb go (free) is not a step of its own: it joins the next step (or the previous one at the very end)
+// - letting a limb go (free) is a step like any other (use "same step" to group it with a move)
 export function groupMoves(moves) {
   const list = (moves || []).map((m, i) => ({ ...m, idx: i }));
   const groups = [];
@@ -32,15 +32,7 @@ export function groupMoves(moves) {
     if (k === 0 || !m.together) groups.push([]);
     groups[groups.length - 1].push(m);
   });
-  const out = [];
-  let carry = [];
-  groups.forEach((g, gi) => {
-    if (gi > 0 && g.every((m) => m.free)) { carry = carry.concat(g); return; }
-    out.push(carry.concat(g).sort((a, c) => a.idx - c.idx));
-    carry = [];
-  });
-  if (carry.length) { if (out.length) out[out.length - 1] = out[out.length - 1].concat(carry).sort((a, c) => a.idx - c.idx); else out.push(carry); }
-  return out;
+  return groups.map((g) => g.slice().sort((a, c) => a.idx - c.idx));
 }
 // a step shares one technique (e.g. a dyno throws both hands together)
 export const stepTech = (g) => { const m = (g || []).find((x) => x.tech && TECH_BY_ID[x.tech]); return m ? m.tech : null; };
@@ -584,7 +576,6 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
       h("span", { className: "cl-beta-lab" }, m0.free ? "Free limb" : "On a"),
       m0.free ? [dirChips(m0.dir || 0, (dir) => updateSel({ dir })), h("button", { key: "back", type: "button", className: "cl-beta-chip wide", onClick: () => updateSel({ free: false, dir: 0 }) }, "Put on a hold")] : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
       sel > 0 && h("button", { type: "button", className: m0.together ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => updateSel({ together: !m0.together }) }, h(Link2, { size: 13 }), " Same step as previous")),
-    m0.free && h("p", { className: "cl-beta-tip" }, "A free limb is not a step of its own: it lets go together with the next step (or the previous one if it is last)."),
     !m0.free && h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, "Or let it go"), dirChips(null, (dir) => updateSel({ free: true, dir }))),
     sugg && sugg.id !== curStepTech && h("button", { type: "button", className: "cl-beta-suggest", onClick: () => setTech(sugg.id) }, h(Sparkles, { size: 14 }), h("span", null, "Suggested: ", h("b", null, TECH_BY_ID[sugg.id].name), h("small", null, " \u2014 ", sugg.why)), h("em", null, "Use")),
     h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, curStepTech ? TECH_BY_ID[curStepTech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
