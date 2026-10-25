@@ -1,5 +1,6 @@
 // chalkline.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { BetaField, BetaPlayer, drawBeta, hasBeta } from "./beta.js";
 import {
   Mountain,
   Camera,
@@ -878,6 +879,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const [points, setPoints] = useState(() => normalizePoints(initial.points));
   const [technique, setTechnique] = useState(initial.technique || []);
   const [satisfaction, setSatisfaction] = useState(initial.satisfaction || 0);
+  const [beta, setBeta] = useState(initial.beta || null);
   const [wall, setWall] = useState(initial.wall || "");
   const [goal, setGoal] = useState(initial.goal || "");
   const [nextTime, setNextTime] = useState(initial.nextTime || "");
@@ -917,6 +919,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
     if (technique.length > 0) extra.technique = technique;
     if (satisfaction > 0) extra.satisfaction = satisfaction;
     if (nextTime.trim()) extra.nextTime = nextTime.trim();
+    if (hasBeta(beta)) extra.beta = beta;
     await onSave({
       wall: wall.trim(),
       goal: goal.trim(),
@@ -949,7 +952,7 @@ function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   )), postType === "day" && /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost cl-full", style: { marginTop: 6 }, onClick: addRow }, /* @__PURE__ */ React.createElement(Plus, { size: 14, style: { marginRight: 4 } }), " Add another climb")), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Date"), /* @__PURE__ */ React.createElement("input", { type: "date", className: "cl-input", value: entryDate, max: (() => {
     const d = /* @__PURE__ */ new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })(), onChange: (e) => setEntryDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "Next time try (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: nextTime, onChange: (e) => setNextTime(e.target.value), placeholder: "e.g. Left heel hook on move 3" })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add your own" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
+  })(), onChange: (e) => setEntryDate(e.target.value) })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Time spent"), /* @__PURE__ */ React.createElement(DurationInput, { hours, minutes, setHours, setMinutes })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Photo"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: `photo-log-${initial.formId || "new"}`, changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 up to about 900px wide, so any size you upload works fine."), photo && React.createElement(BetaField, { photo, beta, onChange: setBeta })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Notes"), /* @__PURE__ */ React.createElement("textarea", { className: "cl-input cl-textarea", placeholder: "Beta, how it felt, what to try next\u2026", value: note, onChange: (e) => setNote(e.target.value) }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "Next time try (optional)"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: nextTime, onChange: (e) => setNextTime(e.target.value), placeholder: "e.g. Left heel hook on move 3" })), /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Technique used (optional)"), /* @__PURE__ */ React.createElement(TagEditor, { options: TECHNIQUE_PRESETS, selected: technique, setSelected: setTechnique, placeholder: "Add your own" }), /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 14 } }, "How satisfied are you? (optional)"), /* @__PURE__ */ React.createElement(StarRating, { value: satisfaction, onChange: setSatisfaction })), showGymTitle && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Who can see this?"), /* @__PURE__ */ React.createElement("div", { className: "cl-toggle-row" }, /* @__PURE__ */ React.createElement("button", { className: privacy === "public" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("public") }, /* @__PURE__ */ React.createElement(Globe, { size: 13 }), " Public"), /* @__PURE__ */ React.createElement("button", { className: privacy === "private" ? "cl-toggle active" : "cl-toggle", onClick: () => setPrivacy("private") }, /* @__PURE__ */ React.createElement(Lock, { size: 13 }), " Private"))), error && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, error), /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: onCancel }, "Cancel"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: submit, disabled: saving }, saving ? "Saving\u2026" : saveLabel)));
 }
 function NewPostForm({ defaultGym, onCancel, onSaveLog }) {
   return /* @__PURE__ */ React.createElement(LogForm, { initial: { gym: defaultGym }, onCancel, onSave: onSaveLog });
@@ -991,7 +994,7 @@ function WallLogCard({ entry, profile, comments, me, defaultGym, onComment, onKu
     await onComment(entry.id, text.trim());
     setText("");
   };
-  const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0], attempts: 1, style: void 0 }], formId: entry.id, photo: entry.photo, points: entry.points } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points };
+  const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0], attempts: 1, style: void 0 }], formId: entry.id, photo: entry.photo, points: entry.points, beta: entry.beta } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points, beta: entry.beta };
   return /* @__PURE__ */ React.createElement("div", { className: "cl-card" }, /* @__PURE__ */ React.createElement("div", { className: "cl-card-head" }, /* @__PURE__ */ React.createElement(
     ClickableIdentity,
     {
@@ -1179,15 +1182,15 @@ function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePriva
   const totals = computeEntryTotals(entry.updates);
   const pts = normalizePoints(entry.points);
   const hasPoints = pts.start.length > 0 || pts.end.length > 0 || pts.fall.length > 0;
-  const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0], attempts: 1, style: void 0 }], formId: entry.id, photo: entry.photo, points: entry.points } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points };
+  const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0], attempts: 1, style: void 0 }], formId: entry.id, photo: entry.photo, points: entry.points, beta: entry.beta } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points, beta: entry.beta };
   return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-log" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement("div", { className: "cl-header-actions" }, onShare && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShare(entry), "aria-label": "Share as picture", title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 })), onShareToPost && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShareToPost(entry), "aria-label": "Share to a post", title: "Post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 17 })), isMine && onTogglePrivacy && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => setConfirm("privacy"), "aria-label": entry.privacy === "private" ? "Private — make public" : "Public — make private", title: entry.privacy === "private" ? "Private" : "Public" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 17 }) : /* @__PURE__ */ React.createElement(Globe, { size: 17 })), isMine && onDelete && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon danger", onClick: () => setConfirm("delete"), "aria-label": "Delete log", title: "Delete" }, /* @__PURE__ */ React.createElement(Trash2, { size: 17 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-title-block" }, /* @__PURE__ */ React.createElement("h1", { className: "cl-log-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-log-title-meta" }, (bestUpdate(entry.updates).climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), entry.gym && /* @__PURE__ */ React.createElement("span", { className: "cl-record-detail-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 13 }), " ", entry.gym, entry.wall ? ` \u00B7 ${entry.wall}` : "")), entry.goal && /* @__PURE__ */ React.createElement("div", { className: "cl-goal-strip" }, /* @__PURE__ */ React.createElement(Flag, { size: 13 }), /* @__PURE__ */ React.createElement("span", null, "Goal: ", entry.goal), (entry.updates || []).some((u) => (u.climbs || []).some((c) => c.status === "sent")) && /* @__PURE__ */ React.createElement("b", null, "Done")), !(entry.updates || []).some((u) => (u.climbs || []).some((c) => c.status === "sent")) && latest.nextTime && /* @__PURE__ */ React.createElement("div", { className: "cl-next-strip" }, /* @__PURE__ */ React.createElement("small", null, "Next time"), /* @__PURE__ */ React.createElement("span", null, latest.nextTime))), isMine && onAddTry && !addingTry && /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons cl-log-top-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => setAddingTry(true) }, "Log another entry"), entry.postType === "project" && onLiveLog && /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onLiveLog(entry) }, /* @__PURE__ */ React.createElement(Zap, { size: 13 }), " Live log")), addingTry && /* @__PURE__ */ React.createElement(LogForm, { initial: tryInitial, saveLabel: "Save entry", onCancel: () => setAddingTry(false), onSave: async (data) => {
     await onAddTry(entry.id, { note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs, entryDate: data.entryDate, extra: data.extra });
     setAddingTry(false);
-  } }), entry.photo && /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
+  } }), entry.photo && (hasBeta(entry.beta) ? React.createElement(BetaPlayer, { photo: entry.photo, beta: entry.beta, onShare: onShare ? () => onShare(entry) : null }) : /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1)))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
     const attemptCount = updateAttempts(u);
     const success = (u.climbs || []).some((c) => c.status === "sent");
     if (editingId === u.id) {
-      return /* @__PURE__ */ React.createElement(LogForm, { key: u.id, saveLabel: "Save changes", initial: { editLog: true, lockPost: true, postType: entry.postType, title: entry.title, gym: entry.gym, wall: entry.wall, goal: entry.goal, nextTime: u.nextTime, hasAttemptLog: !!(u.attemptLog && u.attemptLog.length), climbs: (u.climbs || []).map((c) => ({ ...c })), note: u.note, minutes: u.minutes, timestamp: u.timestamp, technique: u.technique, satisfaction: u.satisfaction, formId: `edit-${u.id}`, photo: entry.photo, points: entry.points }, onCancel: () => setEditingId(null), onSave: async (data) => {
+      return /* @__PURE__ */ React.createElement(LogForm, { key: u.id, saveLabel: "Save changes", initial: { editLog: true, lockPost: true, postType: entry.postType, title: entry.title, gym: entry.gym, wall: entry.wall, goal: entry.goal, nextTime: u.nextTime, hasAttemptLog: !!(u.attemptLog && u.attemptLog.length), climbs: (u.climbs || []).map((c) => ({ ...c })), note: u.note, minutes: u.minutes, timestamp: u.timestamp, technique: u.technique, satisfaction: u.satisfaction, formId: `edit-${u.id}`, photo: entry.photo, points: entry.points, beta: entry.beta }, onCancel: () => setEditingId(null), onSave: async (data) => {
         await onEditEntry(entry.id, u.id, data);
         setEditingId(null);
       } });
@@ -1204,7 +1207,7 @@ function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLo
   const totals = computeEntryTotals(entry.updates);
   const pts = normalizePoints(entry.points);
   const hasPoints = pts.start.length > 0 || pts.end.length > 0 || pts.fall.length > 0;
-  const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0], attempts: 1, style: void 0 }], formId: entry.id, photo: entry.photo, points: entry.points } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points };
+  const tryInitial = entry.postType === "project" ? { lockClimb: true, lockPost: true, climbs: [{ ...latest.climbs[0], attempts: 1, style: void 0 }], formId: entry.id, photo: entry.photo, points: entry.points, beta: entry.beta } : { lockClimb: false, lockPost: true, climbs: [{ type: "boulder", grade: "VB", status: "trying" }], formId: entry.id, photo: entry.photo, points: entry.points, beta: entry.beta };
   return /* @__PURE__ */ React.createElement("div", { className: "cl-record-detail" }, /* @__PURE__ */ React.createElement("div", { className: "cl-record-detail-head" }, /* @__PURE__ */ React.createElement("span", { className: "cl-record-detail-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", entry.gym), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onOpenLogDetail(entry), title: "Open full page" }, /* @__PURE__ */ React.createElement(Maximize2, { size: 14 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShareToPost(entry), title: "Share to post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 14 })), /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onShare(entry), title: "Share as picture" }, /* @__PURE__ */ React.createElement(Share2, { size: 14 })), isMine && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => onTogglePrivacy(entry.id), title: entry.privacy === "private" ? "Private \u2014 tap to make public" : "Public \u2014 tap to make private" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 14 }) : /* @__PURE__ */ React.createElement(Globe, { size: 14 })), /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => onDelete(entry.id), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 14 }), title: "Delete" }))), entry.photo && /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-table" }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-table-head" }, /* @__PURE__ */ React.createElement("span", null, "Date"), /* @__PURE__ */ React.createElement("span", null, "Grade"), /* @__PURE__ */ React.createElement("span", null, "Time"), /* @__PURE__ */ React.createElement("span", null, "Tries"), /* @__PURE__ */ React.createElement("span", null, "Result")), updates.map((u) => {
     const attemptCount = updateAttempts(u);
     const success = (u.climbs || []).some((c) => c.status === "sent");
@@ -1376,6 +1379,7 @@ function LiveLogOverlay({ continueEntry, defaultGym, onClose, onSaveNew, onSaveC
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState(continueEntry?.photo || null);
   const [points, setPoints] = useState(() => normalizePoints(continueEntry?.points));
+  const [beta, setBeta] = useState(continueEntry?.beta || null);
   const [fallPoints, setFallPoints] = useState([]);
   const [privacy, setPrivacy] = useState("public");
   const [saving, setSaving] = useState(false);
@@ -1445,7 +1449,7 @@ function LiveLogOverlay({ continueEntry, defaultGym, onClose, onSaveNew, onSaveC
     const finalStatus = phase === "ended-complete" ? "sent" : "trying";
     const climbs = [{ ...climb, status: finalStatus }];
     const hasAnyPoints = points.start.length > 0 || points.end.length > 0 || fallPoints.length > 0;
-    const extra = { technique, satisfaction, attemptLog: attempts, points: hasAnyPoints ? { ...points, fall: fallPoints } : null };
+    const extra = { technique, satisfaction, attemptLog: attempts, points: hasAnyPoints ? { ...points, fall: fallPoints } : null, beta: hasBeta(beta) ? beta : null };
     if (continueEntry) {
       await onSaveContinue(continueEntry.id, { note: note.trim(), photo, minutes: totalMinutes, climbs, extra });
     } else {
@@ -1457,7 +1461,7 @@ function LiveLogOverlay({ continueEntry, defaultGym, onClose, onSaveNew, onSaveC
   const elapsedCurrent = attemptStart ? now - attemptStart : 0;
   const elapsedRest = restStart ? now - restStart : 0;
   const elapsedTotal = sessionStart ? (endTime || now) - sessionStart : 0;
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, /* @__PURE__ */ React.createElement(Zap, { size: 16, style: { verticalAlign: -2 } }), " Live Log"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, phase === "setup" && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "What are you climbing?"), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Name this project *"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: title, onChange: (e) => setTitle(e.target.value), placeholder: "e.g. Blue arete by the window" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Gym or crag"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: gym, onChange: (e) => setGym(e.target.value), list: "cl-gyms-live" }), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms-live" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g }))), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Type & grade"), /* @__PURE__ */ React.createElement(TypeSelector, { value: climb.type, onChange: (t) => setClimb({ type: t, grade: gradeOptionsFor(t) ? gradeOptionsFor(t)[0] : "" }) }), /* @__PURE__ */ React.createElement(GradeSelector, { type: climb.type, grade: climb.grade, onChange: (g) => setClimb({ ...climb, grade: g }) }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Photo of the wall (optional)"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: "live-photo-setup", changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints }), setupError && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, setupError), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: startSession }, /* @__PURE__ */ React.createElement(Zap, { size: 16 }), " Start climbing")), phase === "ready" && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Ready to go again"), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row", style: { marginTop: 0 } }, /* @__PURE__ */ React.createElement(GradeChip, { type: climb.type, grade: climb.grade })), /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, continueEntry.title, " \xB7 ", gym), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Photo of the wall (optional)"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: "live-photo-ready", changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 any size you upload works fine."), photo && /* @__PURE__ */ React.createElement(PhotoPointPicker, { photo, points, onChange: setPoints }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: startSession }, /* @__PURE__ */ React.createElement(Zap, { size: 16 }), " Start climbing")), (phase === "climbing" || phase === "resting") && /* @__PURE__ */ React.createElement("div", { className: "cl-live-tracker" }, /* @__PURE__ */ React.createElement("div", { className: "cl-live-timer" }, formatMs(phase === "climbing" ? elapsedCurrent : elapsedRest)), /* @__PURE__ */ React.createElement("p", { className: "cl-live-sub" }, phase === "climbing" ? `Attempt ${attempts.length + 1} \xB7 climbing` : "Resting"), /* @__PURE__ */ React.createElement("p", { className: "cl-live-total" }, "Total time: ", formatMs(elapsedTotal)), phase === "climbing" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 16 } }, "Fell at"), /* @__PURE__ */ React.createElement("div", { className: "cl-fall-row" }, FALL_POSITIONS.map((pos) => /* @__PURE__ */ React.createElement("button", { key: pos, className: "cl-fall-btn", onClick: () => recordFall(pos) }, pos))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { background: "var(--accent)" }, onClick: complete }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 16 }), " Complete!"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8 }, onClick: stopHere }, "Stop here")) : /* @__PURE__ */ React.createElement(React.Fragment, null, photo && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section", style: { padding: 0, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Where did you fall? (optional)"), /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-top" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, /* @__PURE__ */ React.createElement(Zap, { size: 16, style: { verticalAlign: -2 } }), " Live Log"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, phase === "setup" && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "What are you climbing?"), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Name this project *"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: title, onChange: (e) => setTitle(e.target.value), placeholder: "e.g. Blue arete by the window" }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Gym or crag"), /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: gym, onChange: (e) => setGym(e.target.value), list: "cl-gyms-live" }), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms-live" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g }))), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Type & grade"), /* @__PURE__ */ React.createElement(TypeSelector, { value: climb.type, onChange: (t) => setClimb({ type: t, grade: gradeOptionsFor(t) ? gradeOptionsFor(t)[0] : "" }) }), /* @__PURE__ */ React.createElement(GradeSelector, { type: climb.type, grade: climb.grade, onChange: (g) => setClimb({ ...climb, grade: g }) }), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Photo of the wall (optional)"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: "live-photo-setup", changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 any size you upload works fine."), photo && React.createElement(BetaField, { photo, beta, onChange: setBeta }), setupError && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, setupError), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: startSession }, /* @__PURE__ */ React.createElement(Zap, { size: 16 }), " Start climbing")), phase === "ready" && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section" }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Ready to go again"), /* @__PURE__ */ React.createElement("div", { className: "cl-chip-row", style: { marginTop: 0 } }, /* @__PURE__ */ React.createElement(GradeChip, { type: climb.type, grade: climb.grade })), /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, continueEntry.title, " \xB7 ", gym), /* @__PURE__ */ React.createElement("label", { className: "cl-label" }, "Photo of the wall (optional)"), /* @__PURE__ */ React.createElement(PhotoAddButtons, { onFile, idBase: "live-photo-ready", changeLabel: !!photo }), /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "Resized automatically \u2014 any size you upload works fine."), photo && React.createElement(BetaField, { photo, beta, onChange: setBeta }), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", onClick: startSession }, /* @__PURE__ */ React.createElement(Zap, { size: 16 }), " Start climbing")), (phase === "climbing" || phase === "resting") && /* @__PURE__ */ React.createElement("div", { className: "cl-live-tracker" }, /* @__PURE__ */ React.createElement("div", { className: "cl-live-timer" }, formatMs(phase === "climbing" ? elapsedCurrent : elapsedRest)), /* @__PURE__ */ React.createElement("p", { className: "cl-live-sub" }, phase === "climbing" ? `Attempt ${attempts.length + 1} \xB7 climbing` : "Resting"), /* @__PURE__ */ React.createElement("p", { className: "cl-live-total" }, "Total time: ", formatMs(elapsedTotal)), phase === "climbing" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption", style: { marginTop: 16 } }, "Fell at"), /* @__PURE__ */ React.createElement("div", { className: "cl-fall-row" }, FALL_POSITIONS.map((pos) => /* @__PURE__ */ React.createElement("button", { key: pos, className: "cl-fall-btn", onClick: () => recordFall(pos) }, pos))), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-primary", style: { background: "var(--accent)" }, onClick: complete }, /* @__PURE__ */ React.createElement(CheckCircle2, { size: 16 }), " Complete!"), /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost cl-full", style: { marginTop: 8 }, onClick: stopHere }, "Stop here")) : /* @__PURE__ */ React.createElement(React.Fragment, null, photo && /* @__PURE__ */ React.createElement("div", { className: "cl-form-section", style: { padding: 0, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("p", { className: "cl-section-caption" }, "Where did you fall? (optional)"), /* @__PURE__ */ React.createElement(
     "div",
     {
       className: "cl-point-photo-wrap",
@@ -1723,7 +1727,8 @@ function drawFullPhotoDesign(ctx, W, H, data, img, bg) {
     const sw = img.width * scale, sh = img.height * scale;
     const sx = areaX + (areaW - sw) / 2, sy = areaY + (areaH - sh) / 2;
     clDrawCover(ctx, img, sx, sy, sw, sh, 18);
-    const pts = normalizePoints(data.points);
+    const pts = hasBeta(data.beta) ? { start: [], end: [], fall: [] } : normalizePoints(data.points);
+    if (hasBeta(data.beta)) drawBeta(ctx, { x: sx, y: sy, w: sw, h: sh }, { x: sx, y: sy, w: sw, h: sh }, data.beta, 1);
     const drawDot = (px, py, label, color) => {
       const cx = sx + px / 100 * sw, cy = sy + py / 100 * sh;
       ctx.beginPath();
@@ -1916,6 +1921,7 @@ function clDayModel(d) {
     chipsTitle: "BY GRADE",
     chips: (d.byGrade || []).map((g) => ({ prefix: g.type === "boulder" ? "" : g.type === "toprope" ? "TR " : g.type === "lead" ? "Lead " : "", text: `${clGradeText(g.type, g.grade)}  \xD7${g.count}`, color: gradeColor(g.type, g.grade) })),
     points: d.points,
+    beta: d.beta,
     hero: { value: d.totalClimbs || 0, label: (d.totalClimbs || 0) === 1 ? "CLIMB" : "CLIMBS" },
     heroLine: `${formatDuration(d.totalMinutes) || "0min"}   \xB7   ${d.totalSent || 0} sent`,
     name: d.name,
@@ -1940,6 +1946,7 @@ function clLogModel(d) {
     chipsTitle: (d.techniques || []).length ? "TECHNIQUE" : "",
     chips: (d.techniques || []).map((t) => ({ prefix: "", text: t, color: null })),
     points: d.points,
+    beta: d.beta,
     hero: { value: d.bestSent ? "SENT" : g || "\u2014", label: d.bestSent ? gradeLabel.toUpperCase() : "PROJECT" },
     clearKicker: "",
     clearSubline: d.gym || "",
@@ -1949,7 +1956,13 @@ function clLogModel(d) {
     fallbackColor: d.bestType ? gradeColor(d.bestType, d.bestGrade) : "#8A8578"
   };
 }
-function clDrawRouteLine(ctx, rx, ry, rw, rh, img, points, k) {
+function clDrawRouteLine(ctx, rx, ry, rw, rh, img, points, k, beta) {
+  if (img && hasBeta(beta)) {
+    const sc0 = Math.max(rw / img.width, rh / img.height);
+    const sw0 = img.width * sc0, sh0 = img.height * sc0;
+    drawBeta(ctx, { x: rx + (rw - sw0) / 2, y: ry + (rh - sh0) / 2, w: sw0, h: sh0 }, { x: rx, y: ry, w: rw, h: rh }, beta, k);
+    return;
+  }
   const pts = normalizePoints(points);
   if (!img || pts.start.length === 0 || pts.end.length === 0) return;
   const sc = Math.max(rw / img.width, rh / img.height);
@@ -1996,7 +2009,7 @@ function clDrawRouteLine(ctx, rx, ry, rw, rh, img, points, k) {
 function drawSummaryOverlay(ctx, W, H, m, img) {
   const cx = W / 2;
   const pts = normalizePoints(m.points);
-  const hasRoute = !!img && pts.start.length > 0 && pts.end.length > 0;
+  const hasRoute = !!img && (hasBeta(m.beta) || pts.start.length > 0 && pts.end.length > 0);
   ctx.fillStyle = m.fallbackColor || "#2E3028";
   ctx.fillRect(0, 0, W, H);
   if (img) {
@@ -2038,7 +2051,7 @@ function drawSummaryOverlay(ctx, W, H, m, img) {
     ctx.fillStyle = "rgba(0,0,0,0.12)";
     clRoundRect(ctx, tx, ty, tw, th, 22);
     ctx.fill();
-    clDrawRouteLine(ctx, tx, ty, tw, th, img, m.points, 1);
+    clDrawRouteLine(ctx, tx, ty, tw, th, img, m.points, 1, m.beta);
     const colW = (W - 100) / Math.max(rows.length, 1);
     rows.forEach((st, i) => {
       const x = 50 + colW * i + colW / 2;
@@ -3184,6 +3197,7 @@ function ChalklineApp() {
       privacy: data.privacy,
       photo: data.photo || null,
       points: extra.points || null,
+      beta: extra.beta || null,
       createdAt: ts,
       updatedAt: ts,
       updates: [firstUpdate],
@@ -3245,6 +3259,7 @@ function ChalklineApp() {
       ].filter(Boolean),
       photo: entry.photo,
       points: entry.points,
+      beta: entry.beta || null,
       accentColor: finished ? "#6B8E4E" : "#C4501F",
       date: new Date(latest.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })
     });
@@ -3319,6 +3334,7 @@ function ChalklineApp() {
       byGrade: d.gradeBreakdown,
       photo: d.best && d.best.entry.photo || profiles[me].photo,
       points: d.best ? d.best.entry.points : null,
+      beta: d.best ? d.best.entry.beta || null : null,
       accentColor: "#6B4C93",
       date: d.dateLabel
     });
@@ -3335,6 +3351,7 @@ function ChalklineApp() {
       updatedAt: ts,
       photo: data.photo || entry.photo || null,
       points: data.photo ? extra.points || null : entry.points || null,
+      beta: data.photo ? extra.beta || null : entry.beta || null,
       updates: [...entry.updates || [], update]
     };
     await safeSet(`log:${logId}`, JSON.stringify(next), true);
@@ -3361,6 +3378,7 @@ function ChalklineApp() {
       goal: data.goal || void 0,
       photo: data.photo || null,
       points: data.photo ? extra.points || null : null,
+      beta: data.photo ? extra.beta || null : null,
       updates,
       updatedAt: Math.max(entry.updatedAt || 0, ts)
     };
@@ -4355,6 +4373,68 @@ function ChalklineApp() {
         .cl-pv-row .cl-pv-caption { margin: 0; }
         .cl-pv-share { min-height: 34px; padding: 0 12px; gap: 6px; font-size: 12px; font-weight: 600; border-radius: 8px; }
         .cl-attempts-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+        /* ---------- beta builder / player ---------- */
+        .cl-beta-stage { position: relative; line-height: 0; user-select: none; -webkit-user-select: none; }
+        .cl-beta-stage img { width: 100%; display: block; -webkit-user-drag: none; }
+        .cl-beta-player .cl-beta-stage { border-radius: 10px; overflow: hidden; }
+        .cl-beta-canvas, .cl-beta-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+        .cl-beta-mk { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font: 800 11px 'Inter', sans-serif; line-height: 1; box-shadow: 0 2px 7px rgba(0,0,0,0.55); pointer-events: none; transition: left .7s cubic-bezier(.3,.7,.2,1), top .7s cubic-bezier(.3,.7,.2,1); }
+        .cl-beta-mk.foot { border-radius: 7px; width: 23px; height: 23px; }
+        .cl-beta-mk.small { width: 22px; height: 22px; font-size: 10px; }
+        .cl-beta-mk.foot.small { width: 20px; height: 20px; }
+        .cl-beta-mk i { position: absolute; top: -8px; right: -9px; font-style: normal; font-size: 9px; font-weight: 800; background: #111; color: #fff; border-radius: 8px; padding: 1px 4px; border: 1px solid #fff; }
+        .cl-beta-mk.active { z-index: 3; animation: cl-beta-pulse 1.1s ease-out 1; }
+        .cl-beta-mk.selected { outline: 3px solid #fff; outline-offset: 2px; }
+        @keyframes cl-beta-pulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.9); } 100% { box-shadow: 0 0 0 16px rgba(255,255,255,0); } }
+        .cl-beta-ping { position: absolute; width: 36px; height: 36px; border-radius: 50%; border: 3px solid #fff; transform: translate(-50%, -50%); animation: cl-beta-ping .6s ease-out forwards; pointer-events: none; }
+        @keyframes cl-beta-ping { from { opacity: 1; transform: translate(-50%, -50%) scale(.4); } to { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } }
+        .cl-beta-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+        .cl-beta-btn { width: 38px; height: 38px; flex-shrink: 0; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .cl-beta-btn.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+        .cl-beta-range { flex: 1; min-width: 0; accent-color: var(--accent2); }
+        .cl-beta-count { font-size: 12px; color: var(--ink-soft); min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+        .cl-beta-caption { margin-top: 8px; min-height: 34px; font-size: 13px; }
+        .cl-beta-caption b { font-size: 13px; }
+        .cl-beta-caption p { margin: 4px 0 0; color: var(--ink); }
+        .cl-beta-chipc { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; font-size: 12px; color: var(--ink-soft); text-transform: capitalize; }
+        .cl-beta-chipc i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+        .cl-beta-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 11px; color: var(--ink-soft); }
+        .cl-beta-legend span { display: inline-flex; align-items: center; }
+        .cl-beta-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; flex-shrink: 0; }
+        .cl-beta-dot.foot { border-radius: 3px; }
+        .cl-beta-share { margin-top: 10px; width: 100%; flex: none; }
+        .cl-beta-editor .cl-beta-body { flex: 1; overflow-y: auto; padding: 10px 12px 28px; max-width: 680px; margin: 0 auto; width: 100%; }
+        .cl-beta-done { color: var(--accent2); }
+        .cl-beta-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+        .cl-beta-tools .cl-hint { margin: 0; display: inline-flex; align-items: center; gap: 4px; }
+        .cl-beta-zoom { display: inline-flex; gap: 4px; }
+        .cl-beta-zoom button { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cl-beta-zoom button.active { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 16%, transparent); }
+        .cl-beta-colors { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; }
+        .cl-beta-color { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600; text-transform: capitalize; cursor: pointer; }
+        .cl-beta-color i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.5); }
+        .cl-beta-color small { color: var(--ink-soft); font-size: 11px; }
+        .cl-beta-color.active { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 16%, transparent); }
+        .cl-beta-scroll { overflow: auto; max-height: 58vh; border-radius: 10px; border: 1px solid var(--line); background: #000; overscroll-behavior: contain; }
+        .cl-beta-stage.editing { cursor: crosshair; touch-action: pan-x pan-y; }
+        .cl-beta-limbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+        .cl-beta-limb { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink-soft); font-size: 11px; font-weight: 600; cursor: pointer; }
+        .cl-beta-limb .cl-beta-dot { margin: 0; width: 14px; height: 14px; }
+        .cl-beta-limb.active { background: color-mix(in srgb, currentColor 12%, transparent); }
+        .cl-beta-moves { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; min-height: 34px; align-items: center; }
+        .cl-beta-move { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cl-beta-move b { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+        .cl-beta-move.active { border-color: #fff; }
+        .cl-beta-edit { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .cl-beta-edit .cl-hint { margin: 0; }
+        .cl-beta-actions { display: flex; gap: 8px; margin-top: 14px; }
+        .cl-beta-field { margin-top: 10px; }
+        .cl-beta-field-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+        .cl-beta-field-row > div { flex: 1; min-width: 0; }
+        .cl-beta-field-row b { display: block; font-size: 14px; }
+        .cl-beta-field-row small { display: block; font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+        .cl-beta-field-row .cl-btn-ghost { flex: 0 0 auto; padding: 8px 14px; }
+        .cl-beta-build { width: 100%; justify-content: center; color: var(--accent2); border-color: color-mix(in srgb, var(--accent2) 45%, transparent); }
       `), bootstrapping || me && !hasLoadedOnce ? /* @__PURE__ */ React.createElement("div", { className: "cl-onboard" }, /* @__PURE__ */ React.createElement("p", { className: "cl-sub" }, "Loading\u2026")) : !me && guestUsername ? /* @__PURE__ */ React.createElement(GuestProfileView, { username: guestUsername, onGoToLogin: () => {
     setGuestUsername(null);
     try {
