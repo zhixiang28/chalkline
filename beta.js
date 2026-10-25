@@ -214,14 +214,14 @@ export function BetaPlayer({ photo, beta, onShare, onSaveBeta, title, subtitle }
   const moves = (beta && beta.moves) || [];
   const groups = useMemo(() => groupMoves(moves), [moves]);
   const n = groups.length;
-  const [step, setStep] = useState(n);
+  const [step, setStep] = useState(Math.min(1, n)); // the preview opens on the starting position
   // the beta was edited: show the new version from its last step, drop the old pose and any old video
   const sig = useMemo(() => JSON.stringify(moves), [beta]);
   const sigRef = useRef(sig);
   useEffect(() => {
     if (sigRef.current === sig) return;
     sigRef.current = sig;
-    setPlaying(false); setStep(groupMoves(moves).length); resetPose(); setVid(null);
+    setPlaying(false); setStep(Math.min(1, groupMoves(moves).length)); resetPose(); setVid(null);
   }, [sig]);
   const [playing, setPlaying] = useState(false);
   const [stick, setStick] = useState(false);
@@ -577,8 +577,9 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     h("div", { className: "compact" }, limbButtons),
     h("div", { className: "cl-beta-row" },
       h("span", { className: "cl-beta-lab" }, m0.free ? "Free limb" : "On a"),
-      m0.free ? dirChips(m0.dir || 0, (dir) => updateSel({ dir })) : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
+      m0.free ? [dirChips(m0.dir || 0, (dir) => updateSel({ dir })), h("button", { key: "back", type: "button", className: "cl-beta-chip wide", onClick: () => updateSel({ free: false, dir: 0 }) }, "Put on a hold")] : SURFS.map(([k, label]) => h("button", { key: k, type: "button", className: (m0.surf || "hold") === k ? "cl-beta-chip active" : "cl-beta-chip", onClick: () => updateSel({ surf: k, color: k === "wall" ? null : m0.color }) }, label)),
       sel > 0 && h("button", { type: "button", className: m0.together ? "cl-beta-chip active wide" : "cl-beta-chip wide", onClick: () => updateSel({ together: !m0.together }) }, h(Link2, { size: 13 }), " Same step as previous")),
+    !m0.free && h("div", { className: "cl-beta-row free" }, h("span", { className: "cl-beta-lab" }, "Or let it go"), dirChips(null, (dir) => updateSel({ free: true, dir }))),
     sugg && sugg.id !== curStepTech && h("button", { type: "button", className: "cl-beta-suggest", onClick: () => setTech(sugg.id) }, h(Sparkles, { size: 14 }), h("span", null, "Suggested: ", h("b", null, TECH_BY_ID[sugg.id].name), h("small", null, " \u2014 ", sugg.why)), h("em", null, "Use")),
     h("button", { type: "button", className: "cl-beta-techbtn", onClick: () => setTechOpen(!techOpen) }, h("span", null, "Technique"), h("b", null, curStepTech ? TECH_BY_ID[curStepTech].name : "None — tap to choose"), h(ChevronRight, { size: 16, style: { transform: techOpen ? "rotate(90deg)" : "none" } })),
     techOpen && h(TechniquePicker, { value: curStepTech, onChange: (t) => { setTech(t); setTechOpen(false); } }),
