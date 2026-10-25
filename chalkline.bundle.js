@@ -4774,8 +4774,8 @@ function ChalklineApp() {
         .cl-qp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0 10px; }
         .cl-qp-head b { font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.08em; font-size: 20px; }
         .cl-qp-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
-        .cl-qp-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .cl-qp-types button { padding: 14px 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; }
+        .cl-qp-types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .cl-qp-types button { padding: 14px 2px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; white-space: nowrap; font-weight: 700; cursor: pointer; }
         .cl-qp-types button.active { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 16%, transparent); }
         .cl-qp-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .cl-qp-grades button { min-height: 62px; border-radius: 14px; border: 2px solid var(--line); background: transparent; color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; }
