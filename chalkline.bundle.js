@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ChevronDown,
   Link2,
+  Undo2,
   Heart,
   Trash2,
   Search,
@@ -888,63 +889,123 @@ function TimeChips({ hours, minutes, setHours, setMinutes }) {
   const quick = [1, 2, 5, 10, 20, 30, 60];
   return /* @__PURE__ */ React.createElement("div", { className: "cl-timechips" }, quick.map((m) => /* @__PURE__ */ React.createElement("button", { key: m, type: "button", className: total === m ? "cl-timechip active" : "cl-timechip", onClick: () => set(total === m ? 0 : m) }, m >= 60 ? "1h" : `${m}m`)), /* @__PURE__ */ React.createElement("label", { className: "cl-timechip-other" }, /* @__PURE__ */ React.createElement("input", { type: "number", inputMode: "numeric", min: "0", className: "cl-input", placeholder: "min", value: total > 0 ? total : "", onChange: (e) => set(Math.max(0, Math.min(1440, Number(e.target.value) || 0))) })));
 }
-function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry, onLogged, onStartSession }) {
+function QuickEditSheet({ item, onClose, onSave, onDelete, onOpenLog }) {
+  const h = React.createElement;
+  const c0 = item.update.climbs[0];
+  const [type, setType] = useState(c0.type);
+  const [grade, setGrade] = useState(c0.grade);
+  const [result, setResult] = useState(c0.status !== "sent" ? "trying" : c0.style === "flash" ? "flash" : "sent");
+  const [attempts, setAttempts] = useState(c0.attempts || 1);
+  const changeType = (t) => { setType(t); const opts = gradeOptionsFor(t); if (opts && !opts.includes(grade)) setGrade(opts[Math.min(2, opts.length - 1)]); };
+  const save = () => {
+    const climb = { ...c0, type, grade, status: result === "trying" ? "trying" : "sent", attempts: result === "flash" ? 1 : attempts };
+    if (result === "flash") climb.style = "flash"; else delete climb.style;
+    onSave(item.log.id, item.update.id, climb);
+  };
+  return h("div", { className: "cl-sheet-backdrop cl-layer-top", onClick: onClose }, h("div", { className: "cl-sheet cl-ql-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" },
+    h("div", { className: "cl-sheet-handle" }),
+    h("div", { className: "cl-ql-head" }, h("div", null, h("b", null, "Edit climb"), h("span", { className: "cl-ql-gym" }, item.log.title, " · ", new Date(item.update.timestamp).toLocaleTimeString(void 0, { hour: "numeric", minute: "2-digit" }))), h("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, h(X, { size: 18 }))),
+    h(TypeSelector, { value: type, onChange: changeType }),
+    h(GradeSelector, { type, grade, onChange: setGrade }),
+    h("div", { className: "cl-ql-result" }, [["flash", "Flash", "first try"], ["sent", "Sent", "got it"], ["trying", "Not yet", "still trying"]].map(([v, l, sub]) => h("button", { key: v, type: "button", className: result === v ? `cl-ql-res active ${v}` : "cl-ql-res", onClick: () => setResult(v) }, h("b", null, l), h("small", null, sub)))),
+    result !== "flash" && h("div", { className: "cl-ql-row" }, h("span", null, "Tries"), h("div", { className: "cl-stepper" }, h("button", { type: "button", onClick: () => setAttempts(Math.max(1, attempts - 1)), "aria-label": "Fewer tries" }, "−"), h("b", null, attempts), h("button", { type: "button", onClick: () => setAttempts(attempts + 1), "aria-label": "More tries" }, "+"))),
+    h("div", { className: "cl-ql-actions" }, h(ConfirmButton, { onConfirm: () => onDelete(item.log.id, item.update.id), icon: h(Trash2, { size: 14 }), label: "Delete", confirmLabel: "Really delete?" }), h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: save }, "Save")),
+    h("button", { type: "button", className: "cl-ql-link", onClick: () => onOpenLog(item.log) }, "Add photo, beta or notes ›")));
+}
+function QuickLogSheet({ me, logs, session, gymDefault, onClose, onLog, onAddTry, onLogged, onUndo, onEditItem, onPatch, onFull, onPost }) {
+  const h = React.createElement;
   const read = (k, d) => { try { return localStorage.getItem("chalkline_ql_" + k) || d; } catch { return d; } };
+  const [page, setPage] = useState("grade");
   const [type, setType] = useState(read("type", "boulder"));
   const [grade, setGrade] = useState(read("grade", "V2"));
-  const [result, setResult] = useState("sent");
   const [attempts, setAttempts] = useState(1);
-  const [name, setName] = useState("");
   const [gym, setGym] = useState(session ? session.gym : read("gym", gymDefault || GYM_OPTIONS[0]));
   const [editGym, setEditGym] = useState(false);
   const [project, setProject] = useState(null);
-  const [toast, setToast] = useState("");
+  const [done, setDone] = useState(null);
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const today = new Date().toDateString();
   const mine = logs.filter((l) => l.authorSlug === me && l.kind === "climb");
-  const todayCount = mine.filter((l) => (l.updates || []).some((u) => new Date(u.timestamp).toDateString() === today)).length;
-  const recent = mine.filter((l) => l.postType === "project" && Date.now() - (l.updatedAt || l.createdAt || 0) < 60 * 864e5).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 8);
+  const recent = mine.filter((l) => l.postType === "project" && Date.now() - (l.updatedAt || l.createdAt || 0) < 60 * 864e5).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 12);
+  const todays = mine.flatMap((l) => (l.updates || []).filter((u) => u.climbs && u.climbs[0] && new Date(u.timestamp).toDateString() === today).map((u) => ({ log: l, update: u }))).sort((a, b) => b.update.timestamp - a.update.timestamp);
+  const gl = (c) => c.type === "boulder" ? boulderLabel(c.grade) : usGrade(c.grade);
+  const options = gradeOptionsFor(type);
+  const pickGrade = (g) => { setGrade(g); setProject(null); setAttempts(1); setPage("result"); };
   const pickProject = (l) => {
-    if (project && project.id === l.id) { setProject(null); return; }
     const last = (l.updates || [])[l.updates.length - 1];
     const c = last && last.climbs && last.climbs[0];
     setProject(l);
     if (c) { setType(c.type); setGrade(c.grade); }
     setGym(l.gym || gym);
+    setAttempts(1);
+    setPage("result");
   };
-  const changeType = (t) => { setType(t); const opts = gradeOptionsFor(t); if (opts && !opts.includes(grade)) setGrade(opts[Math.min(2, opts.length - 1)]); };
-  const save = async () => {
+  const save = async (result) => {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setFailed(false);
     const climb = { type, grade, status: result === "trying" ? "trying" : "sent", attempts: result === "flash" ? 1 : attempts };
     if (result === "flash") climb.style = "flash";
-    const minutes = session ? Math.max(0, Math.round((Date.now() - (session.lastAt || session.start)) / 6e4)) : 0;
+    const minutes = session && session.lastAt ? Math.max(0, Math.round((Date.now() - session.lastAt) / 6e4)) : 0;
     try {
-      if (project) await onAddTry(project.id, { note: "", minutes, climbs: [climb], extra: {} });
-      else await onLog({ postType: "project", title: name.trim(), gym, privacy: "public", climbs: [climb], note: "", photo: null, minutes, extra: void 0 });
+      const ref = project ? await onAddTry(project.id, { note: "", minutes, climbs: [climb], extra: {} }) : await onLog({ postType: "project", title: name.trim(), gym, privacy: "public", climbs: [climb], note: "", photo: null, minutes, extra: void 0 });
       try { localStorage.setItem("chalkline_ql_type", type); localStorage.setItem("chalkline_ql_grade", grade); localStorage.setItem("chalkline_ql_gym", gym); } catch {}
-      onLogged({ attempts: climb.attempts, sent: climb.status === "sent" ? 1 : 0, gym });
-      const g = type === "boulder" ? boulderLabel(grade) : usGrade(grade);
-      setToast(`Logged ${g} · ${result === "flash" ? "flash" : result === "sent" ? "sent" : `${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"}`}`);
-      setName(""); setProject(null); setAttempts(1);
-      setTimeout(() => setToast(""), 2200);
-    } catch {
-      setToast("Couldn't save — try again");
-    }
+      const delta = { attempts: climb.attempts, sent: climb.status === "sent" ? 1 : 0, gym };
+      onLogged(delta);
+      setDone({ msg: `${gl(climb)} · ${result === "flash" ? "flashed" : result === "sent" ? `sent in ${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"}` : `${climb.attempts} ${climb.attempts === 1 ? "try" : "tries"} so far`}`, result, ref, delta, photo: null, linked: !!project });
+      setPage("done");
+    } catch { setFailed(true); }
     setBusy(false);
   };
-  const stepper = (v, set) => /* @__PURE__ */ React.createElement("div", { className: "cl-stepper" }, /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => set(Math.max(1, v - 1)), "aria-label": "Fewer attempts" }, "−"), /* @__PURE__ */ React.createElement("b", null, v), /* @__PURE__ */ React.createElement("button", { type: "button", onClick: () => set(Math.min(99, v + 1)), "aria-label": "More attempts" }, "+"));
-  return /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: onClose }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet cl-ql-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }),
-    /* @__PURE__ */ React.createElement("div", { className: "cl-ql-head" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, "Quick log"), editGym ? /* @__PURE__ */ React.createElement("input", { className: "cl-input cl-ql-gyminput", value: gym, list: "cl-gyms-ql", autoFocus: true, onChange: (e) => setGym(e.target.value), onBlur: () => setEditGym(false) }) : /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-ql-gym", onClick: () => setEditGym(true) }, /* @__PURE__ */ React.createElement(MapPin, { size: 12 }), " ", gym, " · ", todayCount, " logged today ✎"), /* @__PURE__ */ React.createElement("datalist", { id: "cl-gyms-ql" }, GYM_OPTIONS.map((g) => /* @__PURE__ */ React.createElement("option", { key: g, value: g })))), !session && onStartSession && React.createElement("button", { type: "button", className: "cl-ql-timer", onClick: onStartSession }, React.createElement(Clock, { size: 13 }), " Start timer"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, /* @__PURE__ */ React.createElement(X, { size: 18 }))),
-    recent.length > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("p", { className: "cl-ql-cap" }, "Same wall as before? Tap to add another attempt"), /* @__PURE__ */ React.createElement("div", { className: "cl-ql-recent" }, recent.map((l) => /* @__PURE__ */ React.createElement("button", { key: l.id, type: "button", className: project && project.id === l.id ? "cl-ql-proj active" : "cl-ql-proj", onClick: () => pickProject(l) }, l.title, " \u00B7 ", new Date(l.updatedAt || l.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric" }))))),
-    /* @__PURE__ */ React.createElement(TypeSelector, { value: type, onChange: changeType }),
-    /* @__PURE__ */ React.createElement(GradeSelector, { type, grade, onChange: setGrade }),
-    /* @__PURE__ */ React.createElement("div", { className: "cl-ql-result" }, [["flash", "Flash", "first try"], ["sent", "Sent", "got it"], ["trying", "Not yet", "still trying"]].map(([v, l, sub]) => /* @__PURE__ */ React.createElement("button", { key: v, type: "button", className: result === v ? `cl-ql-res active ${v}` : "cl-ql-res", onClick: () => setResult(v) }, /* @__PURE__ */ React.createElement("b", null, l), /* @__PURE__ */ React.createElement("small", null, sub)))),
-    result !== "flash" && /* @__PURE__ */ React.createElement("div", { className: "cl-ql-row" }, /* @__PURE__ */ React.createElement("span", null, result === "sent" ? "Tries to send" : "Tries so far"), stepper(attempts, setAttempts)),
-    !project && /* @__PURE__ */ React.createElement("input", { className: "cl-input", value: name, onChange: (e) => setName(e.target.value), placeholder: "Name or colour (optional) — e.g. orange slab" }),
-    toast && /* @__PURE__ */ React.createElement("p", { className: "cl-ql-toast" }, /* @__PURE__ */ React.createElement(Check, { size: 14 }), " ", toast),
-    /* @__PURE__ */ React.createElement("div", { className: "cl-ql-actions" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-ghost", onClick: onClose }, "Done"), /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: save, disabled: busy }, "Log it")),
-    /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { textAlign: "center" } }, "Add a photo, beta or notes later from the log.")));
+  const undo = async () => { const d = done; if (d && d.ref) await onUndo(d.ref, d.delta); setDone(null); setName(""); setProject(null); setPage("grade"); };
+  const next = () => { setDone(null); setName(""); setProject(null); setAttempts(1); setPage("grade"); };
+  const addPhoto = async (e) => { const f = e.target.files && e.target.files[0]; if (!f || !done || !done.ref) return; const img = await resizeImage(f, 1200, 0.85); await onPatch(done.ref.logId, { photo: img }); setDone({ ...done, photo: img }); e.target.value = ""; };
+  const saveName = async () => { if (!name.trim() || !done || !done.ref) return; await onPatch(done.ref.logId, { title: name.trim() }); setDone({ ...done, named: name.trim() }); };
+  const titles = { grade: "Log a climb", wall: "Same wall as before", result: "How did it go?", done: "Logged", today: "Today" };
+  const back = page === "wall" || page === "today" ? "grade" : page === "result" ? "grade" : null;
+  const head = h("div", { className: "cl-qp-head" },
+    back ? h("button", { type: "button", className: "cl-icon-btn", onClick: () => setPage(back), "aria-label": "Back" }, h(ArrowLeft, { size: 20 })) : h("span", { style: { width: 32 } }),
+    h("b", null, titles[page]),
+    h("button", { type: "button", className: "cl-icon-btn", onClick: onClose, "aria-label": "Close" }, h(X, { size: 18 })));
+  const chip = h("button", { type: "button", className: "cl-qp-chip", onClick: () => setPage("grade") }, h("b", { style: { background: gradeColor(type, grade) } }, gl({ type, grade })), project ? project.title : TYPE_LABELS[type], " · ", gym);
+  let body;
+  if (page === "grade") {
+    body = h(React.Fragment, null,
+      editGym ? h("input", { className: "cl-input cl-ql-gyminput", value: gym, list: "cl-gyms-ql", autoFocus: true, onChange: (e) => setGym(e.target.value), onBlur: () => setEditGym(false) }) : h("button", { type: "button", className: "cl-ql-gym", onClick: () => setEditGym(true) }, h(MapPin, { size: 12 }), " ", gym, " ✎"),
+      h("datalist", { id: "cl-gyms-ql" }, GYM_OPTIONS.map((g) => h("option", { key: g, value: g }))),
+      h("div", { className: "cl-qp-types" }, TYPES.map((t) => h("button", { key: t, type: "button", className: type === t ? "active" : "", onClick: () => { setType(t); const o = gradeOptionsFor(t); if (o && !o.includes(grade)) setGrade(o[Math.min(2, o.length - 1)]); } }, TYPE_LABELS[t]))),
+      h("p", { className: "cl-ql-cap" }, "Grade — tap to continue"),
+      options ? h("div", { className: "cl-qp-grades" }, options.map((g) => h("button", { key: g, type: "button", className: grade === g ? "active" : "", style: { borderColor: gradeColor(type, g), background: grade === g ? gradeColor(type, g) : void 0 }, onClick: () => pickGrade(g) }, type === "boulder" ? boulderLabel(g) : usGrade(g))))
+        : h("div", { className: "cl-qp-other" }, h("input", { className: "cl-input", value: grade, onChange: (e) => setGrade(e.target.value), placeholder: "Describe it (optional)" }), h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: () => pickGrade(grade) }, "Next")),
+      h("div", { className: "cl-qp-links" },
+        recent.length > 0 && h("button", { type: "button", onClick: () => setPage("wall") }, h(Link2, { size: 16 }), " Same wall as before ", h("em", null, "›")),
+        todays.length > 0 && h("button", { type: "button", onClick: () => setPage("today") }, h(Check, { size: 16 }), " Today · ", todays.length, " logged — fix ", h("em", null, "›")),
+        h("button", { type: "button", onClick: onFull }, h(Layers, { size: 16 }), " Full log — photo, beta, notes ", h("em", null, "›")),
+        h("button", { type: "button", onClick: onPost }, h(Camera, { size: 16 }), " New post ", h("em", null, "›"))));
+  } else if (page === "wall") {
+    body = h("div", { className: "cl-qp-list" }, recent.map((l) => { const c = ((l.updates || [])[l.updates.length - 1] || {}).climbs; const c0 = c && c[0]; return h("button", { key: l.id, type: "button", onClick: () => pickProject(l) }, l.photo ? h("img", { src: l.photo, alt: "" }) : h("span", { className: "cl-qp-badge", style: c0 ? { background: gradeColor(c0.type, c0.grade) } : void 0 }, c0 ? gl(c0) : "—"), h("span", { className: "cl-qp-lt" }, h("b", null, l.title), h("small", null, l.gym, " · ", new Date(l.updatedAt || l.createdAt).toLocaleDateString(void 0, { month: "short", day: "numeric" }))), h("em", null, "›")); }));
+  } else if (page === "today") {
+    body = h("div", { className: "cl-qp-list" }, todays.map((it) => { const c = it.update.climbs[0]; return h("button", { key: it.update.id, type: "button", onClick: () => onEditItem(it) }, h("span", { className: "cl-qp-badge", style: { background: gradeColor(c.type, c.grade) } }, gl(c)), h("span", { className: "cl-qp-lt" }, h("b", null, it.log.title), h("small", null, new Date(it.update.timestamp).toLocaleTimeString(void 0, { hour: "numeric", minute: "2-digit" }), " · ", c.status === "sent" ? (c.style === "flash" ? "flash" : `sent in ${c.attempts || 1}`) : `${c.attempts || 1} tries, not yet`)), h("em", null, "Edit ›")); }));
+  } else if (page === "result") {
+    body = h(React.Fragment, null, chip,
+      h("div", { className: "cl-qp-tries" }, h("span", null, "Tries so far"), h("button", { type: "button", onClick: () => setAttempts(Math.max(1, attempts - 1)), "aria-label": "Fewer tries" }, "−"), h("b", null, attempts), h("button", { type: "button", onClick: () => setAttempts(attempts + 1), "aria-label": "More tries" }, "+")),
+      h("div", { className: "cl-qp-results" }, [["flash", "Flash", "first try"], ["sent", "Sent", "topped it"], ["trying", "Not yet", "still working on it"]].map(([v, l, sub]) => h("button", { key: v, type: "button", className: `cl-qp-res ${v}`, disabled: busy, onClick: () => save(v) }, h("b", null, l), h("small", null, sub)))),
+      failed && h("p", { className: "cl-hint", style: { color: "var(--danger, #e5484d)", textAlign: "center" } }, "Couldn't save — try again"),
+      !project && h("input", { className: "cl-input", value: name, onChange: (e) => setName(e.target.value), placeholder: "Name or colour (optional) — e.g. orange slab" }));
+  } else {
+    body = h(React.Fragment, null,
+      h("div", { className: "cl-qp-done" }, h("span", null, h(Check, { size: 34 })), h("b", null, done ? done.msg : ""), session && h("small", null, "Session · ", session.n, session.n === 1 ? " problem" : " problems", " · ", session.sent, " sent")),
+      h("button", { type: "button", className: "cl-btn-primary cl-qp-next", onClick: next }, "Log next climb"),
+      h("div", { className: "cl-qp-after" },
+        h("input", { type: "file", accept: "image/*", id: "cl-qp-photo", className: "cl-file-hidden", onChange: addPhoto }),
+        done && done.photo ? h("span", { className: "cl-qp-photook" }, h("img", { src: done.photo, alt: "" }), " Photo added — build the beta from the log") : h("label", { htmlFor: "cl-qp-photo", className: "cl-qp-act" }, h(Camera, { size: 18 }), " Add a wall photo"),
+        done && !done.linked && !done.named && h("div", { className: "cl-qp-namerow" }, h("input", { className: "cl-input", value: name, onChange: (e) => setName(e.target.value), placeholder: "Name it, e.g. orange slab" }), h("button", { type: "button", className: "cl-btn-ghost", onClick: saveName, disabled: !name.trim() }, "Save")),
+        done && done.named && h("p", { className: "cl-hint" }, "Named “", done.named, "”"),
+        h("button", { type: "button", className: "cl-qp-act", onClick: undo }, h(Undo2, { size: 18 }), " Undo this log"),
+        h("button", { type: "button", className: "cl-qp-act muted", onClick: onClose }, "Done for now")));
+  }
+  return h("div", { className: "cl-sheet-backdrop", onClick: onClose }, h("div", { className: "cl-sheet cl-qp-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, head, h("div", { className: "cl-qp-body" }, body)));
 }
 function LogForm({ initial, onCancel, onSave, saveLabel = "Save to log" }) {
   const [postType, setPostType] = useState(initial.postType || "project");
@@ -1259,7 +1320,7 @@ function VideoClips({ update, canEdit, onChange }) {
   const inputId = `clip-${update.id}`;
   return /* @__PURE__ */ React.createElement("div", { className: "cl-clips" }, videos.map((v) => /* @__PURE__ */ React.createElement("div", { key: v.id, className: "cl-clip" }, /* @__PURE__ */ React.createElement("div", { className: "cl-clip-row" }, /* @__PURE__ */ React.createElement("button", { type: "button", className: "cl-clip-play", onClick: () => play(v) }, /* @__PURE__ */ React.createElement(Play, { size: 14 }), /* @__PURE__ */ React.createElement("span", null, open === v.id ? "Close video" : "Play video"), /* @__PURE__ */ React.createElement("small", null, formatBytes(v.size))), /* @__PURE__ */ React.createElement(ConfirmButton, { onConfirm: () => remove(v), icon: /* @__PURE__ */ React.createElement(Trash2, { size: 13 }), title: "Remove video" })), missing[v.id] && /* @__PURE__ */ React.createElement("p", { className: "cl-hint" }, "This video isn't on this device \u2014 it was saved on another phone or the browser data was cleared."), open === v.id && url && /* @__PURE__ */ React.createElement("video", { className: "cl-clip-video", src: url, controls: true, playsInline: true, autoPlay: true }))), /* @__PURE__ */ React.createElement("input", { id: inputId, type: "file", accept: "video/*", className: "cl-file-hidden", onChange: onFile }), /* @__PURE__ */ React.createElement("label", { htmlFor: inputId, className: "cl-clip-add" }, /* @__PURE__ */ React.createElement(VideoIcon, { size: 14 }), busy ? " Saving\u2026" : " Add video"), videos.length === 0 && !err && /* @__PURE__ */ React.createElement("p", { className: "cl-hint", style: { marginTop: 4 } }, "Videos stay on this phone only \u2014 they aren't uploaded."), err && /* @__PURE__ */ React.createElement("p", { className: "cl-error" }, err));
 }
-function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePrivacy, onAddTry, onEditEntry, onUpdateVideos, onLiveLog, onShare, onShareToPost }) {
+function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePrivacy, onAddTry, onEditEntry, onQuickEdit, onUpdateVideos, onLiveLog, onShare, onShareToPost }) {
   const [addingTry, setAddingTry] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirm, setConfirm] = useState(null);
@@ -1273,7 +1334,7 @@ function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePriva
   return /* @__PURE__ */ React.createElement("div", { className: "cl-overlay cl-layer-log" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: onClose }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }), /* @__PURE__ */ React.createElement("div", { className: "cl-header-actions" }, onShare && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShare(entry), "aria-label": "Share as picture", title: "Share" }, /* @__PURE__ */ React.createElement(Share2, { size: 17 })), onShareToPost && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => onShareToPost(entry), "aria-label": "Share to a post", title: "Post" }, /* @__PURE__ */ React.createElement(Mountain, { size: 17 })), isMine && onTogglePrivacy && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon", onClick: () => setConfirm("privacy"), "aria-label": entry.privacy === "private" ? "Private — make public" : "Public — make private", title: entry.privacy === "private" ? "Private" : "Public" }, entry.privacy === "private" ? /* @__PURE__ */ React.createElement(Lock, { size: 17 }) : /* @__PURE__ */ React.createElement(Globe, { size: 17 })), isMine && onDelete && /* @__PURE__ */ React.createElement("button", { className: "cl-header-icon danger", onClick: () => setConfirm("delete"), "aria-label": "Delete log", title: "Delete" }, /* @__PURE__ */ React.createElement(Trash2, { size: 17 })))), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-title-block" }, /* @__PURE__ */ React.createElement("h1", { className: "cl-log-title" }, entry.title || "Untitled"), /* @__PURE__ */ React.createElement("div", { className: "cl-log-title-meta" }, (bestUpdate(entry.updates).climbs || []).slice(0, 2).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), entry.gym && /* @__PURE__ */ React.createElement("span", { className: "cl-record-detail-gym" }, /* @__PURE__ */ React.createElement(MapPin, { size: 13 }), " ", entry.gym, entry.wall ? ` \u00B7 ${entry.wall}` : "")), entry.goal && /* @__PURE__ */ React.createElement("div", { className: "cl-goal-strip" }, /* @__PURE__ */ React.createElement(Flag, { size: 13 }), /* @__PURE__ */ React.createElement("span", null, "Goal: ", entry.goal), (entry.updates || []).some((u) => (u.climbs || []).some((c) => c.status === "sent")) && /* @__PURE__ */ React.createElement("b", null, "Done")), !(entry.updates || []).some((u) => (u.climbs || []).some((c) => c.status === "sent")) && latest.nextTime && /* @__PURE__ */ React.createElement("div", { className: "cl-next-strip" }, /* @__PURE__ */ React.createElement("small", null, "Next time"), /* @__PURE__ */ React.createElement("span", null, latest.nextTime))), isMine && !entry.photo && onEditEntry && React.createElement("button", { type: "button", className: "cl-addphoto", onClick: () => setEditingId(latest.id) }, React.createElement(Camera, { size: 16 }), " Add a photo or build a beta for this climb"), isMine && onAddTry && !addingTry && /* @__PURE__ */ React.createElement("div", { className: "cl-row-buttons cl-log-top-actions" }, /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => setAddingTry(true) }, "Log another entry"), entry.postType === "project" && onLiveLog && /* @__PURE__ */ React.createElement("button", { className: "cl-btn-ghost", onClick: () => onLiveLog(entry) }, /* @__PURE__ */ React.createElement(Zap, { size: 13 }), " Live log")), addingTry && /* @__PURE__ */ React.createElement(LogForm, { initial: tryInitial, saveLabel: "Save entry", onCancel: () => setAddingTry(false), onSave: async (data) => {
     await onAddTry(entry.id, { note: data.note, photo: data.photo, minutes: data.minutes, climbs: data.climbs, entryDate: data.entryDate, extra: data.extra });
     setAddingTry(false);
-  } }), entry.photo && (hasBeta(entry.beta) ? React.createElement(BetaPlayer, { photo: entry.photo, beta: entry.beta, onShare: onShare ? () => onShare(entry) : null }) : /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1)))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
+  } }), entry.photo && (hasBeta(entry.beta) ? React.createElement(BetaPlayer, { photo: entry.photo, beta: entry.beta, title: entry.title, subtitle: [entry.gym, new Date(entry.updatedAt || Date.now()).toLocaleDateString(void 0, { month: "short", day: "numeric" })].filter(Boolean).join(" \u00B7 "), onShare: onShare ? () => onShare(entry) : null }) : /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-photo-wrap", onClick: () => onEnlarge(entry.photo, entry.points) }, /* @__PURE__ */ React.createElement("img", { src: entry.photo, alt: "", className: "cl-log-detail-photo", style: { cursor: "zoom-in" } }), hasPoints && pts.start.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `s${i}`, className: "cl-point-marker start", style: { left: `${p.x}%`, top: `${p.y}%` } }, "S")), hasPoints && pts.end.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `e${i}`, className: "cl-point-marker end", style: { left: `${p.x}%`, top: `${p.y}%` } }, "E")), hasPoints && pts.fall.map((p, i) => /* @__PURE__ */ React.createElement("span", { key: `f${i}`, className: "cl-point-marker fall", style: { left: `${p.x}%`, top: `${p.y}%` } }, i + 1)))), /* @__PURE__ */ React.createElement("div", { className: "cl-record-summary" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.logCount), /* @__PURE__ */ React.createElement("span", null, "logs")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.totalTries), /* @__PURE__ */ React.createElement("span", null, "tries")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, totals.sentCount), /* @__PURE__ */ React.createElement("span", null, "sent")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("b", null, formatDuration(totals.totalMinutes) || "0min"), /* @__PURE__ */ React.createElement("span", null, "total time"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-list" }, updates.map((u) => {
     const attemptCount = updateAttempts(u);
     const success = (u.climbs || []).some((c) => c.status === "sent");
     if (editingId === u.id) {
@@ -1282,7 +1343,7 @@ function LogDetailModal({ entry, onClose, onEnlarge, me, onDelete, onTogglePriva
         setEditingId(null);
       } });
     }
-    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8 } }, isMine && onEditEntry && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setEditingId(u.id), title: "Edit this entry", "aria-label": "Edit this entry" }, /* @__PURE__ */ React.createElement(Pencil, { size: 14 })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? sentLabel(u.climbs) : "Trying"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1min"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note), u.nextTime && /* @__PURE__ */ React.createElement("p", { className: "cl-note cl-next-note" }, /* @__PURE__ */ React.createElement("b", null, "Next: "), u.nextTime), isMine && onUpdateVideos && /* @__PURE__ */ React.createElement(VideoClips, { update: u, canEdit: true, onChange: (vids) => onUpdateVideos(entry.id, u.id, vids) }));
+    return /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-item", key: u.id }, /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-row-top" }, /* @__PURE__ */ React.createElement("span", { className: "cl-log-cell-date" }, new Date(u.timestamp).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })), /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 8 } }, isMine && onQuickEdit && u.climbs && u.climbs[0] && React.createElement("button", { className: "cl-icon-btn", onClick: () => onQuickEdit({ log: entry, update: u }), title: "Quick change (grade, result, tries)", "aria-label": "Quick change" }, React.createElement(Zap, { size: 14 })), isMine && onEditEntry && /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setEditingId(u.id), title: "Edit this entry", "aria-label": "Edit this entry" }, /* @__PURE__ */ React.createElement(Pencil, { size: 14 })), /* @__PURE__ */ React.createElement("span", { className: success ? "cl-status cl-status-sent" : "cl-status cl-status-trying" }, success ? sentLabel(u.climbs) : "Trying"))), /* @__PURE__ */ React.createElement("div", { className: "cl-log-detail-stats" }, (u.climbs || []).map((c, i) => /* @__PURE__ */ React.createElement(GradeChip, { key: i, type: c.type, grade: c.grade })), u.minutes > 0 && /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Clock, { size: 11 }), " ", formatDuration(u.minutes)), /* @__PURE__ */ React.createElement("span", { className: "cl-log-stat" }, /* @__PURE__ */ React.createElement(Repeat, { size: 11 }), " ", attemptCount, " attempt", attemptCount === 1 ? "" : "s")), u.attemptLog && u.attemptLog.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-try-breakdown", style: { margin: "8px 0 0" } }, u.attemptLog.map((a) => /* @__PURE__ */ React.createElement("div", { key: a.attemptNumber }, /* @__PURE__ */ React.createElement("div", { className: "cl-attempt-line" }, /* @__PURE__ */ React.createElement("span", null, "Attempt ", a.attemptNumber), /* @__PURE__ */ React.createElement("span", null, formatDuration(Math.round(a.durationMs / 6e4)) || "<1min"), /* @__PURE__ */ React.createElement("span", { className: "cl-attempt-outcome" }, a.endType === "fall" ? `Fell at ${a.fallPosition}` : a.endType === "complete" ? "Completed" : "Stopped")), a.note && /* @__PURE__ */ React.createElement("p", { className: "cl-attempt-note" }, a.note)))), u.technique && u.technique.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-gear-row", style: { marginTop: 4 } }, u.technique.map((t, i) => /* @__PURE__ */ React.createElement("span", { className: "cl-gear-pill", key: i }, t))), u.satisfaction > 0 && /* @__PURE__ */ React.createElement("div", { className: "cl-star-row", style: { justifyContent: "flex-start", marginTop: 4 } }, [1, 2, 3, 4, 5].map((n) => /* @__PURE__ */ React.createElement(Star, { key: n, size: 13, fill: n <= u.satisfaction ? "#D4A017" : "none", color: n <= u.satisfaction ? "#D4A017" : "var(--line)" }))), u.note && /* @__PURE__ */ React.createElement("p", { className: "cl-note" }, u.note), u.nextTime && /* @__PURE__ */ React.createElement("p", { className: "cl-note cl-next-note" }, /* @__PURE__ */ React.createElement("b", null, "Next: "), u.nextTime), isMine && onUpdateVideos && /* @__PURE__ */ React.createElement(VideoClips, { update: u, canEdit: true, onChange: (vids) => onUpdateVideos(entry.id, u.id, vids) }));
   })), confirm === "delete" && /* @__PURE__ */ React.createElement(BottomSheet, { title: "Delete this log?", message: "This removes the log and every attempt in it. You can't undo this.", confirmLabel: "Delete", danger: true, onCancel: () => setConfirm(null), onConfirm: () => { setConfirm(null); onDelete(entry.id); onClose(); } }), confirm === "privacy" && /* @__PURE__ */ React.createElement(BottomSheet, { title: entry.privacy === "private" ? "Make this log public?" : "Make this log private?", message: entry.privacy === "private" ? "Anyone on Chalkline will be able to see it." : "Only you will be able to see it.", confirmLabel: entry.privacy === "private" ? "Make public" : "Make private", onCancel: () => setConfirm(null), onConfirm: () => { setConfirm(null); onTogglePrivacy(entry.id); } })));
 }
 function RecordDetail({ entry, me, onDelete, onTogglePrivacy, onAddTry, onLiveLog, onEnlarge, onShare, onShareToPost, onOpenLogDetail }) {
@@ -3140,6 +3201,7 @@ function ChalklineApp() {
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState("home");
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [quickEdit, setQuickEdit] = useState(null);
   const [showQuick, setShowQuick] = useState(false);
   const [session, setSession] = useState(null);
   const [sessionTick, setSessionTick] = useState(0);
@@ -3315,8 +3377,9 @@ function ChalklineApp() {
     const ts = resolveEntryTimestamp(data.entryDate);
     const extra = data.extra || {};
     const firstUpdate = { id: uid(), timestamp: ts, note: data.note, minutes: data.minutes, climbs: data.climbs, ...extra };
+    const newId = uid();
     await addLog({
-      id: uid(),
+      id: newId,
       authorSlug: me,
       authorName: author.name,
       kind: "climb",
@@ -3335,6 +3398,7 @@ function ChalklineApp() {
       kudos: [],
       savedBy: []
     });
+    return { logId: newId, updateId: firstUpdate.id, created: true };
   };
   const createSocialPost = async (data) => {
     const author = profiles[me];
@@ -3485,6 +3549,30 @@ function ChalklineApp() {
       beta: data.photo ? extra.beta || null : entry.beta || null,
       updates: [...entry.updates || [], update]
     };
+    await safeSet(`log:${logId}`, JSON.stringify(next), true);
+    setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
+    return { logId, updateId: update.id };
+  };
+  const patchLog = async (logId, patch) => {
+    const entry = logs.find((l) => l.id === logId);
+    if (!entry) return;
+    const next = { ...entry, ...patch };
+    await safeSet(`log:${logId}`, JSON.stringify(next), true);
+    setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
+  };
+  const deleteUpdate = async (logId, updateId) => {
+    const entry = logs.find((l) => l.id === logId);
+    if (!entry) return;
+    if ((entry.updates || []).length <= 1) { await deleteLog(logId); return; }
+    const next = { ...entry, updates: entry.updates.filter((u) => u.id !== updateId) };
+    next.updatedAt = Math.max(...next.updates.map((u) => u.timestamp));
+    await safeSet(`log:${logId}`, JSON.stringify(next), true);
+    setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
+  };
+  const editClimbQuick = async (logId, updateId, climb) => {
+    const entry = logs.find((l) => l.id === logId);
+    if (!entry) return;
+    const next = { ...entry, updates: entry.updates.map((u) => u.id === updateId ? { ...u, climbs: [climb, ...(u.climbs || []).slice(1)] } : u) };
     await safeSet(`log:${logId}`, JSON.stringify(next), true);
     setLogs((prev) => prev.map((l) => l.id === logId ? next : l));
   };
@@ -3741,9 +3829,15 @@ function ChalklineApp() {
     setSessionSummary({ ...session, end: Date.now() });
     saveSession(null);
   };
-  const quickLogged = ({ attempts, sent, gym }) => {
-    if (!session) return;
-    saveSession({ ...session, gym: gym || session.gym, lastAt: Date.now(), n: session.n + 1, attempts: session.attempts + attempts, sent: session.sent + sent });
+  const quickLogged = ({ attempts, sent, gym, n = 1 }) => {
+    const now = Date.now();
+    // the first logged climb starts a session by itself; a long gap starts a new one
+    const base = session && now - (session.lastAt || session.start) < 3 * 36e5 ? session : { gym: gym || (session && session.gym) || GYM_OPTIONS[0], start: now, lastAt: null, n: 0, attempts: 0, sent: 0 };
+    saveSession({ ...base, gym: gym || base.gym, lastAt: now, n: Math.max(0, base.n + n), attempts: Math.max(0, base.attempts + attempts), sent: Math.max(0, base.sent + sent) });
+  };
+  const undoQuick = async (ref, delta) => {
+    if (ref.created) await deleteLog(ref.logId); else await deleteUpdate(ref.logId, ref.updateId);
+    if (session && delta) saveSession({ ...session, n: Math.max(0, session.n - 1), attempts: Math.max(0, session.attempts - delta.attempts), sent: Math.max(0, session.sent - delta.sent) });
   };
   const fmtClock = (ms) => { const t = Math.max(0, Math.floor(ms / 1e3)), hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60; return hh > 0 ? `${hh}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}` : `${mm}:${String(ss).padStart(2, "0")}`; };
   const myProfile = me ? profiles[me] : null;
@@ -4649,6 +4743,81 @@ function ChalklineApp() {
         .cl-design-thumb.active { border-color: var(--accent2); color: var(--ink); }
         .cl-design-thumb img { width: 100%; display: block; border-radius: 7px; }
         .cl-design-thumb small { display: block; font-size: 10.5px; font-weight: 600; margin-top: 3px; }
+        .cl-beta-free { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--ink-soft); margin: 6px 0; }
+        .cl-beta-free button { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .cl-beta-free button.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+        .cl-beta-vid { margin-top: 10px; }
+        .cl-beta-vidprog { position: relative; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font-size: 13px; overflow: hidden; }
+        .cl-beta-vidprog span { position: relative; z-index: 1; }
+        .cl-beta-vidprog i { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,107,53,0.25); }
+        .cl-beta-vidout video { width: 100%; max-height: 460px; border-radius: 12px; background: #000; display: block; }
+        .cl-beta-vidbtns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+        .cl-beta-vidbtns .cl-btn-primary, .cl-beta-vidbtns .cl-btn-ghost { width: auto; padding: 8px 14px; font-size: 13px; }
+        .cl-ql-result.big .cl-ql-res { padding: 16px 4px; }
+        .cl-ql-result.big .cl-ql-res b { font-size: 17px; }
+        .cl-ql-result.big .cl-ql-res.flash { border-color: #F3BE55; }
+        .cl-ql-result.big .cl-ql-res.sent { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+        .cl-ql-result.big .cl-ql-res:active { transform: scale(0.97); }
+        .cl-ql-chip { flex-shrink: 0; padding: 6px 11px; border: 2px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--ink); font-size: 13px; font-weight: 700; cursor: pointer; }
+        .cl-ql-extras { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .cl-ql-extra { display: inline-flex; align-items: center; gap: 5px; padding: 7px 12px; border: 1px dashed var(--line); border-radius: 999px; color: var(--ink-soft); background: none; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .cl-ql-name { flex: 1; min-height: 36px; font-size: 13px; }
+        .cl-ql-photo { position: relative; display: inline-block; }
+        .cl-ql-photo img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; display: block; }
+        .cl-ql-photo button { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; border: none; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .cl-ql-toast button { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 999px; padding: 3px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .cl-ql-more { display: flex; gap: 14px; align-items: center; }
+        .cl-ql-more button { background: none; border: none; color: var(--ink-soft); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 6px 0; }
+        .cl-ql-more .done { margin-left: auto; color: var(--accent2); font-size: 14px; }
+        .cl-ql-link { background: none; border: none; color: var(--accent2); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; padding: 4px; }
+        .cl-qp-sheet { height: 88vh; max-height: 88vh; display: flex; flex-direction: column; padding-bottom: calc(env(safe-area-inset-bottom) + 14px); }
+        .cl-qp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0 10px; }
+        .cl-qp-head b { font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.08em; font-size: 20px; }
+        .cl-qp-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+        .cl-qp-types { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .cl-qp-types button { padding: 14px 2px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13px; white-space: nowrap; font-weight: 700; cursor: pointer; }
+        .cl-qp-types button.active { border-color: var(--accent2); background: color-mix(in srgb, var(--accent2) 16%, transparent); }
+        .cl-qp-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .cl-qp-grades button { min-height: 62px; border-radius: 14px; border: 2px solid var(--line); background: transparent; color: var(--ink); font-size: 20px; font-weight: 800; cursor: pointer; }
+        .cl-qp-grades button.active { color: #fff; }
+        .cl-qp-grades button:active { transform: scale(0.96); }
+        .cl-qp-other { display: flex; flex-direction: column; gap: 10px; }
+        .cl-qp-links { margin-top: auto; display: flex; flex-direction: column; }
+        .cl-qp-links button { display: flex; align-items: center; gap: 10px; padding: 14px 4px; background: none; border: none; border-top: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; }
+        .cl-qp-links button svg { color: var(--accent2); }
+        .cl-qp-links em, .cl-qp-list em { margin-left: auto; font-style: normal; color: var(--ink-soft); }
+        .cl-qp-chip { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--ink); font-size: 14px; cursor: pointer; text-align: left; }
+        .cl-qp-chip b { color: #fff; border-radius: 8px; padding: 4px 9px; font-size: 15px; }
+        .cl-qp-tries { display: flex; align-items: center; gap: 14px; justify-content: center; font-size: 15px; font-weight: 600; }
+        .cl-qp-tries span { margin-right: auto; }
+        .cl-qp-tries button { width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 26px; cursor: pointer; }
+        .cl-qp-tries b { min-width: 40px; text-align: center; font-size: 28px; }
+        .cl-qp-results { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 240px; }
+        .cl-qp-res { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 18px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+        .cl-qp-res b { font-size: 26px; font-family: 'Barlow Condensed', 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; }
+        .cl-qp-res small { font-size: 12.5px; color: var(--ink-soft); }
+        .cl-qp-res.flash { border-color: #F3BE55; background: rgba(243,190,85,0.12); }
+        .cl-qp-res.sent { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+        .cl-qp-res:active { transform: scale(0.98); }
+        .cl-qp-list { display: flex; flex-direction: column; }
+        .cl-qp-list button { display: flex; align-items: center; gap: 12px; padding: 12px 4px; background: none; border: none; border-top: 1px solid var(--line); color: var(--ink); cursor: pointer; text-align: left; }
+        .cl-qp-list img, .cl-qp-badge { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; background: var(--line); }
+        .cl-qp-lt { display: flex; flex-direction: column; min-width: 0; }
+        .cl-qp-lt b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cl-qp-lt small { font-size: 12px; color: var(--ink-soft); }
+        .cl-qp-done { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 0 8px; text-align: center; }
+        .cl-qp-done span { width: 72px; height: 72px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+        .cl-qp-done b { font-size: 22px; }
+        .cl-qp-done small { color: var(--ink-soft); }
+        .cl-qp-next { margin-top: 0; padding: 18px; font-size: 17px; }
+        .cl-qp-after { display: flex; flex-direction: column; gap: 6px; margin-top: auto; }
+        .cl-qp-act { display: flex; align-items: center; gap: 10px; padding: 15px 4px; background: none; border: none; border-top: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer; }
+        .cl-qp-act svg { color: var(--accent2); }
+        .cl-qp-act.muted { color: var(--ink-soft); justify-content: center; }
+        .cl-qp-namerow { display: flex; gap: 8px; align-items: center; padding: 8px 0; }
+        .cl-qp-namerow .cl-btn-ghost { width: auto; padding: 10px 16px; }
+        .cl-qp-photook { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); padding: 8px 0; }
+        .cl-qp-photook img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
         .cl-add-option.primary b { color: var(--accent2); }
         .cl-session-bar { position: fixed; left: 8px; right: 8px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 49; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--accent2) 55%, var(--line)); box-shadow: 0 8px 22px rgba(0,0,0,0.35); max-width: 664px; margin: 0 auto; }
         .cl-session-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); animation: cl-blink 1.4s ease-in-out infinite; flex-shrink: 0; }
@@ -4762,7 +4931,7 @@ function ChalklineApp() {
       commentsMap,
       addComment
     }
-  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), session && React.createElement("div", { className: "cl-session-bar" }, React.createElement("span", { className: "cl-session-dot" }), React.createElement("b", null, fmtClock(Date.now() - session.start)), React.createElement("span", { className: "cl-session-meta" }, session.n, session.n === 1 ? " problem" : " problems", " \u00B7 ", session.attempts, " tries \u00B7 ", session.sent, " sent"), React.createElement("button", { type: "button", onClick: () => setShowQuick(true) }, "Log"), React.createElement("button", { type: "button", className: "end", onClick: endSession }, "End")), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowAddMenu(true), title: "Add", "aria-label": "Add" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showQuick && React.createElement(QuickLogSheet, { me, logs, session, gymDefault: profiles[me] && profiles[me].mainGym, onClose: () => setShowQuick(false), onLog: createClimbPost, onAddTry: addTry, onLogged: quickLogged, onStartSession: () => { startSession(); } }), sessionSummary && React.createElement(BottomSheet, { title: "Session done", message: `${Math.max(1, Math.round((sessionSummary.end - sessionSummary.start) / 6e4))} min at ${sessionSummary.gym} \u00B7 ${sessionSummary.n} problems \u00B7 ${sessionSummary.attempts} tries \u00B7 ${sessionSummary.sent} sent. Open any log to add photos, beta or notes.`, confirmLabel: "Nice", onCancel: () => setSessionSummary(null), onConfirm: () => setSessionSummary(null) }), showAddMenu && /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-backdrop", onClick: () => setShowAddMenu(false) }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet", onClick: (e) => e.stopPropagation(), role: "dialog", "aria-modal": "true" }, /* @__PURE__ */ React.createElement("div", { className: "cl-sheet-handle" }), /* @__PURE__ */ React.createElement("p", { className: "cl-sheet-title" }, "Add"), React.createElement("button", { className: "cl-add-option primary", onClick: () => { setShowAddMenu(false); setShowQuick(true); } }, React.createElement(Check, { size: 20 }), React.createElement("span", null, React.createElement("b", null, "Quick log"), React.createElement("small", null, "Grade, result, tries \u2014 seconds per climb. Add photo later."))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowNewPost(true); } }, /* @__PURE__ */ React.createElement(Layers, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, React.createElement("b", null, "Full log"), React.createElement("small", null, "Photo, beta, notes \u2014 or log a whole day"))), /* @__PURE__ */ React.createElement("button", { className: "cl-add-option", onClick: () => { setShowAddMenu(false); setShowSocialPost({}); } }, /* @__PURE__ */ React.createElement(Camera, { size: 20 }), /* @__PURE__ */ React.createElement("span", null, /* @__PURE__ */ React.createElement("b", null, "New post"), /* @__PURE__ */ React.createElement("small", null, "Share photos or gear with the crew"))))), viewingProfile && /* @__PURE__ */ React.createElement(
+  ), tab === "alerts" && React.createElement(NotificationsTab, { events: notifs.events, profiles, viewReadAt, perm: notifPerm, onEnable: enableAlerts, onOpen: openNotif })), session && React.createElement("div", { className: "cl-session-bar" }, React.createElement("span", { className: "cl-session-dot" }), React.createElement("b", null, fmtClock(Date.now() - session.start)), React.createElement("span", { className: "cl-session-meta" }, session.n, session.n === 1 ? " problem" : " problems", " \u00B7 ", session.attempts, " tries \u00B7 ", session.sent, " sent"), React.createElement("button", { type: "button", onClick: () => setShowQuick(true) }, "Log"), React.createElement("button", { type: "button", className: "end", onClick: endSession }, "End")), /* @__PURE__ */ React.createElement("div", { className: "cl-nav" }, /* @__PURE__ */ React.createElement("div", { className: "cl-nav-inner" }, /* @__PURE__ */ React.createElement("button", { className: tab === "feed" ? "active" : "", onClick: () => setTab("feed"), title: "Home", "aria-label": "Home" }, /* @__PURE__ */ React.createElement(HomeIcon, { size: 22 })), /* @__PURE__ */ React.createElement("button", { className: tab === "sessions" ? "active" : "", onClick: () => setTab("sessions"), title: "Sessions", "aria-label": "Sessions" }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 22 })), React.createElement("button", { className: "cl-nav-fab", onClick: () => setShowQuick(true), title: "Log a climb", "aria-label": "Log a climb" }, React.createElement("svg", { width: 28, height: 24, viewBox: "0 0 24 20", fill: "currentColor", "aria-hidden": "true" }, React.createElement("path", { d: "M1 19 L8 5 L12 12.5 L15.5 7 L23 19Z" }))), React.createElement("button", { className: tab === "alerts" ? "active" : "", onClick: () => setTab("alerts"), title: "Notifications", "aria-label": "Notifications" }, React.createElement(Bell, { size: 22 }), unreadCount > 0 && React.createElement("span", { className: "cl-nav-badge" }, unreadCount > 9 ? "9+" : unreadCount)), /* @__PURE__ */ React.createElement("button", { className: tab === "home" ? "active" : "", onClick: () => setTab("home"), title: "Profile", "aria-label": "Profile" }, /* @__PURE__ */ React.createElement(Avatar, { name: profiles[me].name, photo: profiles[me].photo, size: 26 })))), showQuick && React.createElement(QuickLogSheet, { me, logs, session, gymDefault: profiles[me] && profiles[me].mainGym, onClose: () => setShowQuick(false), onLog: createClimbPost, onAddTry: addTry, onLogged: quickLogged, onUndo: undoQuick, onEditItem: setQuickEdit, onPatch: patchLog, onFull: () => { setShowQuick(false); setShowNewPost(true); }, onPost: () => { setShowQuick(false); setShowSocialPost({}); } }), quickEdit && React.createElement(QuickEditSheet, { item: quickEdit, onClose: () => setQuickEdit(null), onSave: async (lid, uid2, climb) => { await editClimbQuick(lid, uid2, climb); setQuickEdit(null); }, onDelete: async (lid, uid2) => { const gone = (logs.find((l) => l.id === lid) || { updates: [] }).updates.length <= 1; await deleteUpdate(lid, uid2); setQuickEdit(null); if (gone && viewingLogDetail && viewingLogDetail.id === lid) setViewingLogDetail(null); }, onOpenLog: (l) => { setQuickEdit(null); setShowQuick(false); setViewingLogDetail(l); } }), sessionSummary && React.createElement(BottomSheet, { title: "Session done", message: `${Math.max(1, Math.round((sessionSummary.end - sessionSummary.start) / 6e4))} min at ${sessionSummary.gym} \u00B7 ${sessionSummary.n} problems \u00B7 ${sessionSummary.attempts} tries \u00B7 ${sessionSummary.sent} sent. Open any log to add photos, beta or notes.`, confirmLabel: "Nice", onCancel: () => setSessionSummary(null), onConfirm: () => setSessionSummary(null) }), viewingProfile && /* @__PURE__ */ React.createElement(
     ProfileView,
     {
       slug: viewingProfile,
@@ -4818,7 +4987,7 @@ function ChalklineApp() {
       profiles,
       onClose: () => setSharePostData(null)
     }
-  ), viewingDay && React.createElement(DayConclusionModal, { targetDate: typeof viewingDay === "object" ? viewingDay.ts : viewingDay, logs: typeof viewingDay === "object" ? logs.filter((l) => l.privacy !== "private") : logs, me: typeof viewingDay === "object" ? viewingDay.slug : me, readOnly: typeof viewingDay === "object", onClose: () => setViewingDay(null), onShareDay: shareDay, onOpenLogDetail: setViewingLogDetail }), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: logs.find((l) => l.id === viewingLogDetail.id) || viewingLogDetail, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }), me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onEditEntry: editEntry, onUpdateVideos: setUpdateVideos, onLiveLog: (entryArg) => setLiveLogState({ continueEntry: entryArg }), onShare, onShareToPost: (entryArg) => setShowSocialPost({ attachLogId: entryArg.id }) }), viewingSharedPost && /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setViewingSharedPost(null) }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Shared post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
+  ), viewingDay && React.createElement(DayConclusionModal, { targetDate: typeof viewingDay === "object" ? viewingDay.ts : viewingDay, logs: typeof viewingDay === "object" ? logs.filter((l) => l.privacy !== "private") : logs, me: typeof viewingDay === "object" ? viewingDay.slug : me, readOnly: typeof viewingDay === "object", onClose: () => setViewingDay(null), onShareDay: shareDay, onOpenLogDetail: setViewingLogDetail }), viewingLogDetail && /* @__PURE__ */ React.createElement(LogDetailModal, { entry: logs.find((l) => l.id === viewingLogDetail.id) || viewingLogDetail, onQuickEdit: setQuickEdit, onClose: () => setViewingLogDetail(null), onEnlarge: (photo, points) => setLightbox({ photo, points }), me, onDelete: deleteLog, onTogglePrivacy: togglePrivacy, onAddTry: addTry, onEditEntry: editEntry, onUpdateVideos: setUpdateVideos, onLiveLog: (entryArg) => setLiveLogState({ continueEntry: entryArg }), onShare, onShareToPost: (entryArg) => setShowSocialPost({ attachLogId: entryArg.id }) }), viewingSharedPost && /* @__PURE__ */ React.createElement("div", { className: "cl-overlay" }, /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-header" }, /* @__PURE__ */ React.createElement("button", { className: "cl-icon-btn", onClick: () => setViewingSharedPost(null) }, /* @__PURE__ */ React.createElement(ArrowLeft, { size: 20 })), /* @__PURE__ */ React.createElement("span", { className: "cl-overlay-title" }, "Shared post"), /* @__PURE__ */ React.createElement("div", { style: { width: 32 } })), /* @__PURE__ */ React.createElement("div", { className: "cl-overlay-body" }, /* @__PURE__ */ React.createElement(
     PostCard,
     {
       entry: viewingSharedPost,

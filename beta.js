@@ -1,6 +1,6 @@
 // Beta builder + player: mark which hold each hand/foot uses, in order, and replay it step by step.
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowLeft, Play, Pause, Undo2, Trash2, Check, ChevronLeft, ChevronRight, ZoomIn, Sparkles, X, PersonStanding, Link2 } from "lucide-react";
+import { ArrowLeft, Play, Pause, Undo2, Trash2, Check, ChevronLeft, ChevronRight, ZoomIn, Sparkles, X, PersonStanding, Link2, Film, Share2, Download } from "lucide-react";
 import { solvePose, poseLines } from "./stickman.js";
 import { TechniquePicker, TechniqueHelpButton, TECH_BY_ID } from "./technique.js";
 import { toImageData, detectHolds, growHoldAt, nameColor, rgb2hsv, COLOR_HEX } from "./holds.js";
@@ -32,8 +32,14 @@ export const stepOfMove = (moves) => { const map = []; groupMoves(moves).forEach
 // where every limb is after `step` steps
 export function positionsAt(moves, step) {
   const pos = {};
-  groupMoves(moves).slice(0, step).forEach((g, gi) => g.forEach((m) => { pos[m.limb] = { ...m, gi }; }));
+  groupMoves(moves).slice(0, step).forEach((g, gi) => g.forEach((m) => { if (m.free) delete pos[m.limb]; else pos[m.limb] = { ...m, gi }; }));
   return pos;
+}
+// limbs that were let go (off the wall) after `step` steps, with the direction they point (-1 left, 0 hang, 1 right)
+export function freeAt(moves, step) {
+  const fr = {};
+  groupMoves(moves).slice(0, step).forEach((g) => g.forEach((m) => { if (m.free) fr[m.limb] = m.dir || 0; else delete fr[m.limb]; }));
+  return fr;
 }
 
 // markers that sit on (almost) the same spot are nudged apart so both stay visible
@@ -64,6 +70,41 @@ const bodyScale = (moves, asp) => {
   return Math.max(9, Math.min(26, span / 3.1));
 };
 
+// one body size for the whole animation: the chosen size, but never smaller than needed to reach every hold without stretching
+export function stickScale(moves, asp, build) {
+  const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || {}) };
+  const steps = groupMoves(moves).length;
+  let u = bodyScale(moves, asp) * bd.size;
+  for (let tries = 0; tries < 14; tries++) {
+    let bad = false;
+    for (let s = 1; s <= steps && !bad; s++) {
+      const pos = positionsAt(moves, s), t = {};
+      Object.keys(pos).forEach((k) => { t[k] = { x: pos[k].x, y: pos[k].y * asp }; });
+      if (Object.keys(t).length && solvePose(t, u, { armK: bd.arm, legK: bd.leg, torsoK: bd.torso, freeDir: freeAt(moves, s) }).over) bad = true;
+    }
+    if (!bad) break;
+    u *= 1.07;
+  }
+  return u;
+}
+export function poseAt(moves, step, asp, u, build) {
+  const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || {}) };
+  const pos = positionsAt(moves, step), t = {};
+  Object.keys(pos).forEach((k) => { t[k] = { x: pos[k].x, y: pos[k].y * asp }; });
+  if (!Object.keys(t).length) return null;
+  return solvePose(t, u, { armK: bd.arm, legK: bd.leg, torsoK: bd.torso, freeDir: freeAt(moves, step) });
+}
+export function lerpPose(A, B, e) {
+  if (!A) return B;
+  const out = { ...B };
+  Object.keys(B).forEach((k) => {
+    const a = A[k], v = B[k];
+    if (v && typeof v === "object" && "x" in v && a && "x" in a) out[k] = { x: a.x + (v.x - a.x) * e, y: a.y + (v.y - a.y) * e };
+    else if (typeof v === "number" && typeof a === "number") out[k] = a + (v - a) * e;
+  });
+  return out;
+}
+
 function Marker({ m, number, selected, active, small, off }) {
   const L = LIMBS[m.limb];
   return h("div", {
@@ -75,11 +116,11 @@ function Marker({ m, number, selected, active, small, off }) {
 function Trails({ moves, step, activeGroup }) {
   const groups = groupMoves(moves).slice(0, step);
   const hands = [];
-  groups.forEach((g) => g.forEach((m) => { if (LIMBS[m.limb].kind === "hand") hands.push(m); }));
+  groups.forEach((g) => g.forEach((m) => { if (LIMBS[m.limb].kind === "hand" && !m.free) hands.push(m); }));
   const prev = {};
   const segs = [];
-  groups.forEach((g, gi) => g.forEach((m) => { if (gi === activeGroup && prev[m.limb]) segs.push({ a: prev[m.limb], b: m, color: LIMBS[m.limb].color }); prev[m.limb] = m; }));
-  groups.forEach((g, gi) => { if (gi !== activeGroup) g.forEach((m) => { prev[m.limb] = m; }); });
+  groups.forEach((g, gi) => g.forEach((m) => { if (gi === activeGroup && prev[m.limb] && !m.free) segs.push({ a: prev[m.limb], b: m, color: LIMBS[m.limb].color }); prev[m.limb] = m.free ? null : m; }));
+  groups.forEach((g, gi) => { if (gi !== activeGroup) g.forEach((m) => { prev[m.limb] = m.free ? null : m; }); });
   return h("svg", { className: "cl-beta-svg", viewBox: "0 0 100 100", preserveAspectRatio: "none" },
     hands.length > 1 && h("polyline", { points: hands.map((m) => `${m.x},${m.y}`).join(" "), fill: "none", stroke: "rgba(255,255,255,0.55)", strokeWidth: 2, strokeDasharray: "4 3", vectorEffect: "non-scaling-stroke", strokeLinecap: "round", strokeLinejoin: "round" }),
     segs.map((sg, i) => h("line", { key: i, x1: sg.a.x, y1: sg.a.y, x2: sg.b.x, y2: sg.b.y, stroke: sg.color, strokeWidth: 3.5, vectorEffect: "non-scaling-stroke", strokeLinecap: "round" })));
@@ -90,11 +131,9 @@ export function BetaLegend() {
 }
 
 // ---------- stickman overlay ----------
-function Stickman({ disp, asp, u, build }) {
-  const t = {};
-  Object.keys(disp).forEach((k) => { t[k] = { x: disp[k].x, y: disp[k].y * asp }; });
-  if (!Object.keys(t).length) return null;
-  const P = solvePose(t, u, { armK: build.arm, legK: build.leg, torsoK: build.torso });
+function Stickman({ pose, asp }) {
+  const P = pose;
+  if (!P) return null;
   const L = poseLines(P);
   const col = (k) => LIMBS[k].color;
   const body = (key, d, w, c) => h("path", { key, d, fill: "none", stroke: c, strokeWidth: w, strokeLinecap: "round", strokeLinejoin: "round" });
@@ -118,7 +157,7 @@ function SurfacePicker({ value, onChange }) {
 const stepLabel = (g) => g.map((m) => LIMBS[m.limb].label).join(" + ");
 
 // ---------- player (read-only, animated) ----------
-export function BetaPlayer({ photo, beta, onShare }) {
+export function BetaPlayer({ photo, beta, onShare, title, subtitle }) {
   const moves = (beta && beta.moves) || [];
   const groups = useMemo(() => groupMoves(moves), [moves]);
   const n = groups.length;
@@ -128,6 +167,23 @@ export function BetaPlayer({ photo, beta, onShare }) {
   const [asp, setAsp] = useState(1.33);
   const [build, setBuildState] = useState(loadBuild);
   const [tune, setTune] = useState(false);
+  const [vid, setVid] = useState(null);
+  useEffect(() => () => { if (vid && vid.url) URL.revokeObjectURL(vid.url); }, [vid && vid.url]);
+  const makeVideo = async () => {
+    setPlaying(false);
+    setVid({ busy: true, p: 0 });
+    try {
+      const r = await recordBetaVideo({ photo, beta, title, subtitle, build, onProgress: (p) => setVid((v) => (v && v.busy ? { ...v, p } : v)) });
+      setVid({ url: URL.createObjectURL(r.blob), blob: r.blob, ext: r.ext, type: r.type });
+    } catch { setVid({ error: true }); }
+  };
+  const fileOf = () => new File([vid.blob], `${(title || "beta").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-beta.${vid.ext}`, { type: vid.type });
+  const downloadVideo = () => { const a = document.createElement("a"); a.href = vid.url; a.download = fileOf().name; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+  const shareVideo = async () => {
+    const f = fileOf();
+    try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: title || "Climbing beta" }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    downloadVideo();
+  };
   const setBuild = (patch) => setBuildState((b0) => { const nb = { ...b0, ...patch }; try { localStorage.setItem("chalkline_build", JSON.stringify(nb)); } catch {} return nb; });
   useEffect(() => {
     if (!playing) return undefined;
@@ -137,27 +193,26 @@ export function BetaPlayer({ photo, beta, onShare }) {
   const pos = useMemo(() => positionsAt(moves, step), [moves, step]);
   const cur = step > 0 ? groups[step - 1] : null;
   const offs = useMemo(() => spreadOffsets(Object.keys(pos).map((k) => ({ key: k, x: pos[k].x, y: pos[k].y })), asp), [pos, asp]);
-  // smooth movement of the stickman between steps
-  const [disp, setDisp] = useState({});
-  const dispRef = useRef({});
+  // smooth movement of the stickman between steps (joint to joint, so limbs never stretch on the way)
+  const u = useMemo(() => stickScale(moves, asp, build), [moves, asp, build]);
+  const target = useMemo(() => poseAt(moves, step, asp, u, build), [moves, step, asp, u, build]);
+  const [pose, setPose] = useState(null);
+  const poseRef = useRef(null);
   useEffect(() => {
     if (!stick) return undefined;
-    const target = {};
-    Object.keys(pos).forEach((k) => { target[k] = { x: pos[k].x, y: pos[k].y }; });
-    const from = dispRef.current;
+    const from = poseRef.current;
+    if (!from || !target) { poseRef.current = target; setPose(target); return undefined; }
     let raf = 0, t0 = 0;
     const tick = (ts) => {
       if (!t0) t0 = ts;
       const t = Math.min(1, (ts - t0) / 700), e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const next = {};
-      Object.keys(target).forEach((k) => { const f = from[k] || target[k]; next[k] = { x: f.x + (target[k].x - f.x) * e, y: f.y + (target[k].y - f.y) * e }; });
-      dispRef.current = next; setDisp(next);
+      const next = lerpPose(from, target, e);
+      poseRef.current = next; setPose(next);
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [pos, stick]);
-  const u = useMemo(() => bodyScale(moves, asp), [moves, asp]);
+  }, [target, stick]);
   const toggle = () => {
     if (!playing && step >= n) setStep(0);
     setPlaying((p) => !p);
@@ -166,7 +221,7 @@ export function BetaPlayer({ photo, beta, onShare }) {
     h("div", { className: stick ? "cl-beta-stage dim" : "cl-beta-stage" },
       h("img", { src: photo, alt: "Wall with beta", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
       !stick && h(Trails, { moves, step, activeGroup: step - 1 }),
-      stick && h(Stickman, { disp, asp, u: u * build.size, build }),
+      stick && h(Stickman, { pose, asp }),
       Object.keys(pos).map((k) => h(Marker, { key: k, m: pos[k], off: offs[k], active: pos[k].gi === step - 1 }))),
     h("div", { className: "cl-beta-controls" },
       h("button", { type: "button", className: "cl-beta-btn", onClick: () => { setPlaying(false); setStep((s) => Math.max(0, s - 1)); }, "aria-label": "Previous move" }, h(ChevronLeft, { size: 18 })),
@@ -187,11 +242,24 @@ export function BetaPlayer({ photo, beta, onShare }) {
       h("b", null, `Step ${step} \u00B7 ${stepLabel(cur)}`),
       cur.map((m) => h("div", { key: m.id, className: "cl-beta-mline" },
         h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: LIMBS[m.limb].color } }), LIMBS[m.limb].short === "L" ? "Left " : "Right ", LIMBS[m.limb].kind),
-        m.surf && m.surf !== "hold" && h("span", { className: "cl-beta-chipc" }, "on ", m.surf === "wall" ? "the wall" : "a volume"),
-        m.color && m.surf !== "wall" && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold"),
+        m.free && h("span", { className: "cl-beta-chipc" }, m.dir ? `free \u00B7 out to the ${m.dir < 0 ? "left" : "right"}` : "free \u00B7 hanging"),
+        m.surf && m.surf !== "hold" && !m.free && h("span", { className: "cl-beta-chipc" }, "on ", m.surf === "wall" ? "the wall" : "a volume"),
+        m.color && m.surf !== "wall" && !m.free && h("span", { className: "cl-beta-chipc" }, h("i", { style: { background: COLOR_HEX[m.color] || "#888" } }), m.color, " hold"),
         m.tech && TECH_BY_ID[m.tech] && h("span", { className: "cl-beta-tech" }, TECH_BY_ID[m.tech].name, h(TechniqueHelpButton, { id: m.tech })),
         m.note && h("p", null, m.note)))) : h("span", { className: "cl-hint" }, "Press play to watch the beta, or drag the slider.")),
-    h(BetaLegend), onShare && h("button", { type: "button", className: "cl-btn-ghost cl-beta-share", onClick: onShare }, "Share beta"));
+    h(BetaLegend),
+    videoSupported() && h("div", { className: "cl-beta-vid" },
+      !vid && h("button", { type: "button", className: "cl-btn-ghost cl-beta-share", onClick: makeVideo }, h(Film, { size: 14 }), " Save stickman video (share / download)"),
+      vid && vid.busy && h("div", { className: "cl-beta-vidprog" }, h("span", null, `Making video\u2026 ${Math.round(vid.p * 100)}%`), h("i", { style: { width: `${vid.p * 100}%` } })),
+      vid && vid.error && h("p", { className: "cl-hint" }, "Couldn't make the video on this device. ", h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setVid(null) }, "Try again")),
+      vid && vid.url && h("div", { className: "cl-beta-vidout" },
+        h("video", { src: vid.url, controls: true, playsInline: true, loop: true, muted: true, autoPlay: true }),
+        h("div", { className: "cl-beta-vidbtns" },
+          h("button", { type: "button", className: "cl-btn-primary", style: { marginTop: 0 }, onClick: shareVideo }, h(Share2, { size: 14 }), " Share"),
+          h("button", { type: "button", className: "cl-btn-ghost", onClick: downloadVideo }, h(Download, { size: 14 }), " Download ." + vid.ext),
+          h("button", { type: "button", className: "cl-beta-tunebtn", onClick: () => setVid(null) }, "Redo")),
+        vid.ext === "webm" && h("p", { className: "cl-hint" }, "This phone saves .webm. Most apps and Android accept it; Instagram may need an .mp4."))),
+    onShare && h("button", { type: "button", className: "cl-btn-ghost cl-beta-share", onClick: onShare }, "Share beta card"));
 }
 
 // ---------- editor ----------
@@ -256,7 +324,7 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
 
   const place = (x, y, color) => {
     if (sel != null) {
-      setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, x, y, color: m.surf === "wall" ? null : color } : m)));
+      setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, x, y, free: false, dir: 0, color: m.surf === "wall" ? null : color } : m)));
       setSel(null);
       return;
     }
@@ -298,11 +366,11 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
     place(fx * 100, fy * 100, color);
   };
 
-  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0) })) } : null);
+  const done = () => onSave(moves.length ? { v: 1, color: focus || null, moves: moves.map(({ id, limb: l, surf: sf, free: fr, dir, x, y, color, note, tech, together }, i) => ({ id, limb: l, surf: sf || "hold", x, y, color, note: note || "", tech: tech || null, together: !!(together && i > 0), ...(fr ? { free: true, dir: dir || 0 } : {}) })) } : null);
   const updateSel = (patch) => setMoves((ms) => ms.map((m, i) => (i === sel ? { ...m, ...patch } : m)));
   const removeSel = () => { setMoves((ms) => ms.filter((_, i) => i !== sel)); setSel(null); };
   const steps = useMemo(() => stepOfMove(moves), [moves]);
-  const offs = useMemo(() => spreadOffsets(moves.map((m) => ({ key: m.id, x: m.x, y: m.y })), asp), [moves, asp]);
+  const offs = useMemo(() => spreadOffsets(moves.filter((m) => !m.free).map((m) => ({ key: m.id, x: m.x, y: m.y })), asp), [moves, asp]);
 
   return h("div", { className: "cl-overlay cl-layer-top cl-beta-editor" },
     h("div", { className: "cl-overlay-header" },
@@ -326,19 +394,22 @@ export function BetaEditor({ photo, beta, onSave, onCancel }) {
           h("img", { src: photo, alt: "", draggable: false, onLoad: (e) => { if (e.target.naturalWidth) setAsp(e.target.naturalHeight / e.target.naturalWidth); } }),
           h("canvas", { ref: canvasRef, className: "cl-beta-canvas" }),
           h(Trails, { moves, step: 9999, activeGroup: -1 }),
-          moves.map((m, i) => h(Marker, { key: m.id, m, off: offs[m.id], number: steps[i], selected: sel === i, small: zoom === 1 })),
+          moves.map((m, i) => (m.free ? null : h(Marker, { key: m.id, m, off: offs[m.id], number: steps[i], selected: sel === i, small: zoom === 1 }))),
           ping && h("span", { key: ping.k, className: "cl-beta-ping", style: { left: `${ping.x}%`, top: `${ping.y}%` } }))),
       sel == null && h(SurfacePicker, { value: surf, onChange: setSurf }),
       h("div", { className: "cl-beta-limbs" },
         Object.keys(LIMBS).map((k) => h("button", { key: k, type: "button", className: (sel != null ? moves[sel].limb : limb) === k ? "cl-beta-limb active" : "cl-beta-limb", style: (sel != null ? moves[sel].limb : limb) === k ? { borderColor: LIMBS[k].color, color: LIMBS[k].color } : void 0, onClick: () => { if (sel != null) updateSel({ limb: k }); else setLimb(k); } }, h("b", { className: `cl-beta-dot ${LIMBS[k].kind}`, style: { background: LIMBS[k].color } }), LIMBS[k].label))),
       h("div", { className: "cl-beta-moves" },
         moves.length === 0 && h("span", { className: "cl-hint" }, "Pick a limb, then tap the hold it uses. Do your moves in order."),
-        moves.map((m, i) => h("button", { key: m.id, type: "button", className: sel === i ? "cl-beta-move active" : "cl-beta-move", onClick: () => setSel(sel === i ? null : i) }, m.together && i > 0 && h("em", null, "+"), h("b", { style: { background: LIMBS[m.limb].color, color: LIMBS[m.limb].ink } }, steps[i]), m.limb, m.tech && h("small", null, TECH_BY_ID[m.tech] ? TECH_BY_ID[m.tech].name : "")))),
+        moves.map((m, i) => h("button", { key: m.id, type: "button", className: sel === i ? "cl-beta-move active" : "cl-beta-move", onClick: () => setSel(sel === i ? null : i) }, m.together && i > 0 && h("em", null, "+"), h("b", { style: { background: LIMBS[m.limb].color, color: LIMBS[m.limb].ink } }, steps[i]), m.limb, m.free && h("small", null, "free"), m.tech && h("small", null, TECH_BY_ID[m.tech] ? TECH_BY_ID[m.tech].name : "")))),
       sel == null && moves.length > 0 && h("button", { type: "button", className: tog ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => setTog(!tog) }, h(Link2, { size: 14 }), tog ? " Next tap is the same step as the previous move" : " Same step as previous move? (e.g. matching both hands)"),
+      sel == null && h("div", { className: "cl-beta-free" },
+        h("span", null, `Let ${LIMBS[limb].label.toLowerCase()} go (free):`),
+        [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", onClick: () => { setMoves((ms) => [...ms, { id: rid(), limb, free: true, dir, x: 50, y: 50, surf: "hold", color: null, note: "", tech: null, together: tog && ms.length > 0 }]); setTog(false); setLimb(NEXT_LIMB[limb]); } }, label))),
       sel != null ? h("div", { className: "cl-beta-edit" },
-        h("p", { className: "cl-hint" }, `Step ${steps[sel]} (${LIMBS[moves[sel].limb].label}): tap a limb above to change it, or tap the photo to move it to another hold.`),
+        h("p", { className: "cl-hint" }, moves[sel].free ? `Step ${steps[sel]}: ${LIMBS[moves[sel].limb].label} is free (off the wall). Tap the photo to put it on a hold instead.` : `Step ${steps[sel]} (${LIMBS[moves[sel].limb].label}): tap a limb above to change it, or tap the photo to move it to another hold.`),
         sel > 0 && h("button", { type: "button", className: moves[sel].together ? "cl-beta-tog active" : "cl-beta-tog", onClick: () => updateSel({ together: !moves[sel].together }) }, h(Link2, { size: 14 }), moves[sel].together ? " Same step as the previous move" : " Make this the same step as the previous move"),
-        h(SurfacePicker, { value: moves[sel].surf || "hold", onChange: (s) => updateSel({ surf: s, color: s === "wall" ? null : moves[sel].color }) }),
+        moves[sel].free ? h("div", { className: "cl-beta-free" }, h("span", null, "Free limb:"), [["Hang", 0], ["Out left", -1], ["Out right", 1]].map(([label, dir]) => h("button", { key: label, type: "button", className: (moves[sel].dir || 0) === dir ? "active" : "", onClick: () => updateSel({ dir }) }, label))) : h(SurfacePicker, { value: moves[sel].surf || "hold", onChange: (s) => updateSel({ surf: s, color: s === "wall" ? null : moves[sel].color }) }),
         h("p", { className: "cl-section-caption", style: { margin: "6px 0 0" } }, "Technique (tap ? to see how)"),
         h(TechniquePicker, { value: moves[sel].tech || null, onChange: (t) => updateSel({ tech: t }) }),
         h("input", { className: "cl-input", value: moves[sel].note || "", onChange: (e) => updateSel({ note: e.target.value }), placeholder: "Note (e.g. big reach, keep hips in)" }),
@@ -363,9 +434,12 @@ export function BetaField({ photo, beta, onChange }) {
 
 // ---------- share-card drawing ----------
 export function drawBeta(ctx, imgRect, view, beta, k = 1) {
-  const moves = (beta && beta.moves) || [];
+  const allMoves = (beta && beta.moves) || [];
+  if (!allMoves.length) return;
+  const stepsAll = stepOfMove(allMoves);
+  const keep = allMoves.map((m, i) => i).filter((i) => !allMoves[i].free);
+  const moves = keep.map((i) => allMoves[i]), steps = keep.map((i) => stepsAll[i]);
   if (!moves.length) return;
-  const steps = stepOfMove(moves);
   const P = (m) => ({
     x: Math.min(view.x + view.w - 14 * k, Math.max(view.x + 14 * k, imgRect.x + (m.x / 100) * imgRect.w)),
     y: Math.min(view.y + view.h - 14 * k, Math.max(view.y + 14 * k, imgRect.y + (m.y / 100) * imgRect.h)),
@@ -410,6 +484,92 @@ export function drawBeta(ctx, imgRect, view, beta, k = 1) {
   ctx.restore();
 }
 
+
+// draws the stick figure; F maps a pose point to canvas pixels, unit = pixels per pose unit
+function paintPose(ctx, P, F, unit) {
+  const line = (pts, col, lw) => { ctx.beginPath(); pts.forEach((p, i) => { const q = F(p); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); ctx.strokeStyle = col; ctx.lineWidth = lw * unit; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(); };
+  const segs = [[[P.neck, P.hip], "#F2F0E9", 2.4], [[P.LS, P.RS], "#F2F0E9", 2], [[P.LP, P.RP], "#F2F0E9", 2], [[P.LS, P.LE, P.LH], LIMBS.LH.color, 2], [[P.RS, P.RE, P.RH], LIMBS.RH.color, 2], [[P.LP, P.LK, P.LF], LIMBS.LF.color, 2.1], [[P.RP, P.RK, P.RF], LIMBS.RF.color, 2.1]];
+  segs.forEach(([pts, , lw]) => line(pts, "rgba(0,0,0,0.65)", lw + 1.6));
+  segs.forEach(([pts, col, lw]) => line(pts, col, lw));
+  const hp = F(P.head);
+  ctx.beginPath(); ctx.arc(hp.x, hp.y, P.headR * unit, 0, Math.PI * 2); ctx.fillStyle = "#2A2D27"; ctx.fill(); ctx.lineWidth = 1.5 * unit; ctx.strokeStyle = "#F2F0E9"; ctx.stroke();
+}
+
+// ---------- animation -> video ----------
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+export function videoSupported() {
+  return typeof MediaRecorder !== "undefined" && typeof HTMLCanvasElement !== "undefined" && !!HTMLCanvasElement.prototype.captureStream;
+}
+// records the stickman beta as a vertical video (720x1280). Resolves { blob, ext }.
+export async function recordBetaVideo({ photo, beta, title, subtitle, build, onProgress }) {
+  const moves = (beta && beta.moves) || [];
+  const groups = groupMoves(moves), n = groups.length;
+  const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = photo; });
+  const W = 720, H = 1280, canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const iw = img.width, ih = img.height, asp = ih / iw;
+  const ax = 24, ay = 150, aw = W - 48, ah = 900;
+  const sc = Math.min(aw / iw, ah / ih), dw = iw * sc, dh = ih * sc, dx = ax + (aw - dw) / 2, dy = ay + (ah - dh) / 2;
+  const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || loadBuild()) };
+  const u = stickScale(moves, asp, bd);
+  const poses = [null];
+  for (let s = 1; s <= n; s++) poses.push(poseAt(moves, s, asp, u, bd));
+  const F = (p) => ({ x: dx + (p.x / 100) * dw, y: dy + (p.y / 100) * dw });
+  const unit = dw / 100;
+  const TWEEN = 800, HOLD = 900, LEAD = 900, TAIL = 1500;
+  const total = LEAD + n * (TWEEN + HOLD) + TAIL;
+  const frame = (t) => {
+    ctx.fillStyle = "#14150F"; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = "left"; ctx.fillStyle = "#F2F0E9"; ctx.font = "800 44px sans-serif";
+    ctx.fillText((title || "Beta").slice(0, 26), ax, 80);
+    ctx.fillStyle = "#A9A596"; ctx.font = "600 26px sans-serif"; ctx.fillText(subtitle || "", ax, 120);
+    ctx.save(); ctx.beginPath(); ctx.rect(dx, dy, dw, dh); ctx.clip(); ctx.drawImage(img, dx, dy, dw, dh); ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.fillRect(dx, dy, dw, dh); ctx.restore();
+    let step = 0, e = 1;
+    if (t >= LEAD) { const k = Math.min(n, Math.floor((t - LEAD) / (TWEEN + HOLD))) + 1; step = Math.min(n, k); const local = t - LEAD - (step - 1) * (TWEEN + HOLD); const tt = Math.min(1, Math.max(0, local / TWEEN)); e = tt < 0.5 ? 2 * tt * tt : 1 - Math.pow(-2 * tt + 2, 2) / 2; }
+    const prev = step > 1 ? poses[step - 1] : null;
+    const P = step ? lerpPose(prev, poses[step], e) : null;
+    if (P) paintPose(ctx, P, F, unit);
+    if (step) {
+      const pos = positionsAt(moves, step);
+      Object.keys(pos).forEach((kk) => { const q = F({ x: pos[kk].x, y: pos[kk].y * asp }), L = LIMBS[kk]; ctx.beginPath(); ctx.arc(q.x, q.y, 3.4 * unit, 0, Math.PI * 2); ctx.fillStyle = L.color; ctx.fill(); ctx.lineWidth = 0.5 * unit; ctx.strokeStyle = "#fff"; ctx.stroke(); });
+      const g = groups[step - 1];
+      ctx.fillStyle = "#F2F0E9"; ctx.font = "800 36px sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(`Step ${step}/${n}`, ax, 1112);
+      ctx.font = "600 28px sans-serif"; ctx.fillStyle = "#D9D4C4";
+      ctx.fillText(g.map((m) => LIMBS[m.limb].label + (m.free ? " free" : "")).join(" + ").slice(0, 40), ax, 1156);
+      const tech = g.map((m) => m.tech && TECH_BY_ID[m.tech] ? TECH_BY_ID[m.tech].name : "").filter(Boolean)[0];
+      if (tech) { ctx.fillStyle = "#FF8A4C"; ctx.fillText(tech, ax, 1198); }
+    }
+    ctx.fillStyle = "#6F6C60"; ctx.font = "700 22px sans-serif"; ctx.textAlign = "right"; ctx.fillText("CHALKLINE", W - ax, 1240);
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i < step ? "#FF6B35" : "#3A3B33"; ctx.fillRect(ax + i * (aw / n), 1250, aw / n - 4, 6); }
+  };
+  const types = ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  const mime = types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+  const stream = canvas.captureStream(30);
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 4000000 } : undefined);
+  const chunks = [];
+  rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+  const stopped = new Promise((res) => { rec.onstop = res; });
+  frame(0);
+  rec.start(200);
+  const t0 = performance.now();
+  await new Promise((res) => {
+    const tick = () => {
+      const t = performance.now() - t0;
+      frame(Math.min(t, total));
+      if (onProgress) onProgress(Math.min(1, t / total));
+      if (t < total) requestAnimationFrame(tick); else res();
+    };
+    requestAnimationFrame(tick);
+  });
+  await wait(150);
+  rec.stop();
+  await stopped;
+  const type = (rec.mimeType || mime || "video/webm").split(";")[0];
+  return { blob: new Blob(chunks, { type }), ext: type.includes("mp4") ? "mp4" : "webm", type };
+}
+
 // ---------- share-card: stickman frame (a crop of the wall with the climber at one step) ----------
 export function drawStickFrame(ctx, x, y, w, h, img, beta, step, label, build) {
   const moves = (beta && beta.moves) || [];
@@ -417,7 +577,7 @@ export function drawStickFrame(ctx, x, y, w, h, img, beta, step, label, build) {
   const bd = { size: 0.75, arm: 1, leg: 1, torso: 1, ...(build || loadBuild()) };
   const iw = img.width, ih = img.height, asp = ih / iw;
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-  moves.forEach((m) => { const px = (m.x / 100) * iw, py = (m.y / 100) * ih; x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); });
+  moves.forEach((m) => { if (m.free) return; const px = (m.x / 100) * iw, py = (m.y / 100) * ih; x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); });
   const bw = x1 - x0, bh = y1 - y0;
   let ch = Math.max(bh * 1.7, (bw * 1.7 * h) / w, ih * 0.4);
   let cw = (ch * w) / h;
@@ -432,17 +592,10 @@ export function drawStickFrame(ctx, x, y, w, h, img, beta, step, label, build) {
   ctx.drawImage(img, sx, sy, cw, ch, x, y, w, h);
   ctx.fillStyle = "rgba(0,0,0,0.42)"; ctx.fillRect(x, y, w, h);
   const pos = positionsAt(moves, step);
-  const t = {};
-  Object.keys(pos).forEach((kk) => { t[kk] = { x: pos[kk].x, y: pos[kk].y * asp }; });
-  if (Object.keys(t).length) {
-    const u = bodyScale(moves, asp) * bd.size;
-    const P = solvePose(t, u, { armK: bd.arm, legK: bd.leg, torsoK: bd.torso });
-    const line = (pts, col, lw) => { ctx.beginPath(); pts.forEach((p, i) => { const q = F(p); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }); ctx.strokeStyle = col; ctx.lineWidth = lw * unit; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(); };
-    const segs = [[[P.neck, P.hip], "#F2F0E9", 2.4], [[P.LS, P.RS], "#F2F0E9", 2], [[P.LP, P.RP], "#F2F0E9", 2], [[P.LS, P.LE, P.LH], LIMBS.LH.color, 2], [[P.RS, P.RE, P.RH], LIMBS.RH.color, 2], [[P.LP, P.LK, P.LF], LIMBS.LF.color, 2.1], [[P.RP, P.RK, P.RF], LIMBS.RF.color, 2.1]];
-    segs.forEach(([pts, , lw]) => line(pts, "rgba(0,0,0,0.65)", lw + 1.6));
-    segs.forEach(([pts, col, lw]) => line(pts, col, lw));
-    const hp = F(P.head);
-    ctx.beginPath(); ctx.arc(hp.x, hp.y, P.headR * unit, 0, Math.PI * 2); ctx.fillStyle = "#2A2D27"; ctx.fill(); ctx.lineWidth = 1.5 * unit; ctx.strokeStyle = "#F2F0E9"; ctx.stroke();
+  const P0 = poseAt(moves, step, asp, stickScale(moves, asp, bd), bd);
+  if (P0) {
+    const P = P0;
+    paintPose(ctx, P, F, unit);
     Object.keys(pos).forEach((kk) => {
       const q = F({ x: pos[kk].x, y: pos[kk].y * asp }), L = LIMBS[kk];
       ctx.beginPath(); ctx.arc(q.x, q.y, 3.4 * unit, 0, Math.PI * 2); ctx.fillStyle = L.color; ctx.fill(); ctx.lineWidth = 0.5 * unit; ctx.strokeStyle = "#fff"; ctx.stroke();
